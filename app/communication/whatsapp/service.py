@@ -1,8 +1,9 @@
 import httpx
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infra.config import config
 from app.communication.whatsapp.schema import (
@@ -10,6 +11,8 @@ from app.communication.whatsapp.schema import (
     ProcessMessageResult,
     HandleMessagePayload,
 )
+
+from app.modules.message_handler.service import message_handler_service
 
 
 logger = logging.getLogger(__name__)
@@ -32,7 +35,7 @@ class WhatsAppService:
             detail="Forbidden: Verification failed",
         )
 
-    async def handle_webhook(self, payload: WebhookPayload) -> None:
+    async def handle_webhook(self, payload: WebhookPayload, db: AsyncSession) -> None:
         """Process incoming WhatsApp webhook payload"""
         change = payload.entry[0].changes[0] if payload.entry else None
 
@@ -58,12 +61,12 @@ class WhatsAppService:
 
             # Freshness check
             if timestamp:
-                print(f"Processing message from {from_number} at {timestamp}")
                 message_time = datetime.fromtimestamp(int(timestamp))
                 now = datetime.now()
                 age = now - message_time
 
                 if age > timedelta(minutes=1):  # Ignore messages older than 1 minute
+                    print(f"Ignoring old message from {from_number} (age: {age})")
                     continue
 
             is_reply = bool(context)
@@ -77,12 +80,13 @@ class WhatsAppService:
                     )
                 )
             else:
-                response = await self._handle_new_message(
-                    HandleMessagePayload(
+                response = await message_handler_service.handle_new_message(
+                    payload=HandleMessagePayload(
                         **{"from": from_number},
                         contact=contact,
                         message=message,
-                    )
+                    ),
+                    db=db,
                 )
 
             await self._send_bot_responses(response, from_number)

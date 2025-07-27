@@ -1,9 +1,11 @@
 import logging
-from fastapi import APIRouter, Query, Body
+from fastapi import APIRouter, Depends, Query, Body
 from typing import Dict, Any
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.communication.whatsapp.dto import SendMessageDto
 from app.communication.whatsapp.schema import WebhookPayload
 from app.communication.whatsapp.service import whatsapp_service
+from app.infra.db.engine import get_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
@@ -21,10 +23,12 @@ async def verify_webhook(
 
 
 @router.post("/webhook")
-async def handle_webhook(payload: WebhookPayload) -> Dict[str, str]:
+async def handle_webhook(
+    payload: WebhookPayload, db: AsyncSession = Depends(get_db)
+) -> Dict[str, str]:
     """Handle incoming WhatsApp webhook"""
     logger.info("Webhook payload received")
-    await whatsapp_service.handle_webhook(payload)
+    await whatsapp_service.handle_webhook(payload, db)
     return {"status": "ok"}
 
 
