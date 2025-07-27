@@ -8,7 +8,7 @@ from typing import List, Optional, Dict, Any, TYPE_CHECKING
 from app.infra.db.base import BaseModel
 
 if TYPE_CHECKING:
-    from app.modules.expenses.models import Expense
+    from app.infra.db import Expense
 
 
 class User(BaseModel):

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.infra.db.base import BaseModel
 
 if TYPE_CHECKING:
-    from app.modules.expenses.models import Expense
+    from app.infra.db import Expense
 
 
 class Category(BaseModel):

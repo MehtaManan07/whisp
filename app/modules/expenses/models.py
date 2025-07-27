@@ -7,8 +7,7 @@ from app.infra.db.base import BaseModel
 from app.utils.datetime import utc_now
 
 if TYPE_CHECKING:
-    from app.modules.users.models import User
-    from app.modules.categories.models import Category
+    from app.infra.db import User, Category
 
 
 class Expense(BaseModel):
