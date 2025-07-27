@@ -1,12 +1,8 @@
-from typing import List
-from fastapi import Depends, FastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select
-from app.infra.db.engine import get_db
 from app.infra.middleware.request_id_middleware import RequestIDMiddleware
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.infra.db import User
+from app.communication.whatsapp.controller import router as whatsapp_router
 
 app = FastAPI(
     title="Whisp API",
@@ -24,19 +20,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-async def get_all_users(db: AsyncSession) -> List[User]:
-    """Fetch all users from database"""
-    result = await db.execute(select(User))
-    users = result.scalars().all()
-    return list(users)
-
-
-@app.get("/users", response_model=List[dict])
-async def list_users(db: AsyncSession = Depends(get_db)):
-    """Get all users"""
-    users = await get_all_users(db)
-    return [{"id": user.id, "wa_id": user.wa_id, "name": user.name} for user in users]
+# Routers
+app.include_router(whatsapp_router, tags=["whatsapp"])
 
 
 @app.get("/demo")
