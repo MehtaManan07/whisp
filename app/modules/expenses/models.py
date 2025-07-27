@@ -1,0 +1,49 @@
+from datetime import datetime
+from typing import TYPE_CHECKING, Optional
+from sqlalchemy import ForeignKey, String, Float, DateTime
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.infra.db.base import BaseModel
+from app.utils.datetime import utc_now
+
+if TYPE_CHECKING:
+    from app.modules.users.models import User
+    from app.modules.categories.models import Category
+
+
+class Expense(BaseModel):
+    __tablename__ = "expenses"
+
+    # Foreign key relationships using string IDs from BaseModel
+    user_id: Mapped[str] = mapped_column(
+        String, ForeignKey("users.id"), nullable=False, index=True
+    )
+
+    category_id: Mapped[Optional[str]] = mapped_column(
+        String, ForeignKey("categories.id"), nullable=True, index=True
+    )
+
+    # Expense fields
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+
+    note: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+    source_message_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True, index=True
+    )
+
+    # Relationships
+    user: Mapped["User"] = relationship(
+        "User", back_populates="expenses", lazy="selectin"
+    )
+
+    category: Mapped[Optional["Category"]] = relationship(
+        "Category", back_populates="expenses", lazy="selectin"
+    )
+
+    def __repr__(self) -> str:
+        return f"<Expense(amount={self.amount}, user_id='{self.user_id}')>"
