@@ -1,22 +1,47 @@
-class WAKEUP_MESSAGES:
+class HELP_MESSAGES:
     @staticmethod
-    def new_user(name: str) -> str:
+    def help(name: str) -> str:
         return f"""
-Hey {name}! 👋 I'm WAkeUp 📲 — your simple daily habit mirror on WhatsApp.
+👋 Hey {name}! I'm your personal finance assistant. Here’s what I can help you with:
 
-Just send me "log" each night to tell me how your day went.  
-Then text "wake up" in the morning to get your personalized reflection.
+💸 *Expense Tracking*
+- Log an expense: `Spent 250 on groceries`
+- View recent expenses: `/expenses`
+- View today's summary: `/today`
+- Monthly summary: `/month`
 
-No apps, no dashboards, no pressure — just 1 message a day.  
-Ready to start?
-"""
+📊 *Budgets*
+- Set a budget: `/budget Food 5000`
+- View budgets: `/budgets`
+- Edit a budget: `/editbudget Food 6000`
 
-    @staticmethod
-    def existing_user(name: str) -> str:
-        return f"""
-Welcome back, {name}! 🚀 Let's get back to it.
+🎯 *Goals & Saving*
+- Set a goal: `/goal Save 20000 by December`
+- View goals: `/goals`
 
-You know the drill: just send "log" tonight — and I'll turn your day into a quick, honest reflection by morning.
+⏰ *Reminders*
+- Set a reminder: `/remind Pay rent on 1st`
+- View all reminders: `/reminders`
 
-You're one message away from staying sharp. Let's keep the streak alive. 🔁
+🔍 *Insights & Analysis*
+- Ask: `How much did I spend on food last week?`
+- Compare months: `Compare June and July`
+
+📚 *Financial Help*
+- Ask anything: `What’s an ELSS fund?`
+- Tax help: `How can I save tax as a freelancer?`
+
+🛠️ *Settings & Help*
+- `/help` – Show this menu
+- `/export` – Export your data
+- `/reset` – Clear all my data
+- `/feedback` – Send feedback
+
+---
+
+Tip: You can also just *type naturally!* Try:
+➡️ "Did I spend more on eating out this month?"
+➡️ "Remind me to check my credit card bill"
+
+
 """

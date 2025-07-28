@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.communication.whatsapp.schema import HandleMessagePayload, ProcessMessageResult
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.service import users_service
-from app.utils.constants import WAKEUP_MESSAGES
+import app.utils.constants.whatsapp_responses as message_constants
 
 logger = logging.getLogger(__name__)
 
@@ -26,48 +26,61 @@ class MessageHandlerService:
         if not text:
             return None
 
+        # Check if it's a command (starts with /)
+        if text.startswith("/"):
+            return await self.handle_command(payload, db)
+        else:
+            return await self.handle_free_text(payload, db)
+
+    async def handle_command(
+        self, payload: HandleMessagePayload, db: AsyncSession
+    ) -> Optional[ProcessMessageResult]:
+        """Handle command messages (starting with /)"""
+        text = (
+            payload.message.text.body.strip().lower() if payload.message.text else None
+        )
+        if not text:
+            return None
+
         match text:
-            case "wakeup":
-                return await self.handle_wakeup_message(payload, db)
-
-            # Placeholder for other commands like 'log', 'help', etc.
-            # case "log":
-            #     return await self.handle_log_command(payload, db)
-
+            case "/help":
+                return await self.handle_help_command(payload, db)
             case _:
-                # Default fallback
+                # Unknown command
                 return ProcessMessageResult(
                     messages=[
-                        'Hmm, I didn\'t get that. Try "log" or "wakeup" to get started.'
+                        'Unknown command. Try "/help" to see available commands.'
                     ],
                     status="success",
                 )
 
-    async def handle_wakeup_message(
+    async def handle_free_text(
         self, payload: HandleMessagePayload, db: AsyncSession
-    ) -> ProcessMessageResult:
-        """Handle wakeup command"""
-        user_data = await users_service.find_or_create(
-            db=db,
-            user_data=CreateUserDto(
-                wa_id=payload.contact.wa_id,
-                name=payload.contact.profile.get("name"),
-                phone_number=payload.from_,
-            ),
+    ) -> Optional[ProcessMessageResult]:
+        """Handle free text messages (not commands)"""
+        """
+        handle_free_text() 
+      → classify intent (expense logging / reflection / chat)
+      → if expense → parse it → log to DB → return friendly reply
+      → if reflection → store it → generate LLM summary
+      → else → fallback to LLM (generic chat)
+
+        """
+        # Default fallback for free text
+        return ProcessMessageResult(
+            messages=[
+                'Hmm, I didn\'t get that. Try "log" or "wakeup" to get started.'
+            ],
+            status="success",
         )
 
-        if not user_data:
-            return ProcessMessageResult(
-                messages=[
-                    "Something went wrong while setting you up. Try again later."
-                ],
-                status="error",
-            )
+    async def handle_help_command(
+        self, payload: HandleMessagePayload, db: AsyncSession
+    ) -> ProcessMessageResult:
+        """Handle hemp command"""
 
-        message = (
-            WAKEUP_MESSAGES.existing_user(user_data["user"].name)
-            if user_data["is_existing_user"]
-            else WAKEUP_MESSAGES.new_user(user_data["user"].name)
+        message = message_constants.HELP_MESSAGES.help(
+            name=payload.contact.profile.get("name", "buddy")
         )
 
         return ProcessMessageResult(messages=[message], status="success")
