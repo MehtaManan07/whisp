@@ -1,7 +1,6 @@
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import Dict, Any
 
 from app.infra.db import User
 from app.modules.users.dto import CreateUserDto
