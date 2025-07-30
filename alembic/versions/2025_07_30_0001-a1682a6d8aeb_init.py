@@ -1,8 +1,8 @@
-"""initial tables
+"""init
 
-Revision ID: 614600af7964
+Revision ID: a1682a6d8aeb
 Revises: 
-Create Date: 2025-07-28 02:14:43.414941
+Create Date: 2025-07-30 00:01:52.481237
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '614600af7964'
+revision: str = 'a1682a6d8aeb'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -24,9 +24,10 @@ def upgrade() -> None:
     op.create_table('categories',
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('description', sa.String(), nullable=True),
-    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_categories_id'), 'categories', ['id'], unique=False)
@@ -38,23 +39,25 @@ def upgrade() -> None:
     sa.Column('last_active', sa.DateTime(timezone=True), nullable=True, comment='For engagement reminders'),
     sa.Column('streak', sa.Integer(), nullable=False, comment='Consecutive log days'),
     sa.Column('meta', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)
     op.create_index(op.f('ix_users_wa_id'), 'users', ['wa_id'], unique=True)
     op.create_table('expenses',
-    sa.Column('user_id', sa.String(), nullable=False),
-    sa.Column('category_id', sa.String(), nullable=True),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('category_id', sa.Integer(), nullable=True),
     sa.Column('amount', sa.Float(), nullable=False),
     sa.Column('note', sa.String(), nullable=True),
     sa.Column('timestamp', sa.DateTime(timezone=True), nullable=False),
     sa.Column('source_message_id', sa.String(), nullable=True),
-    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['category_id'], ['categories.id'], ),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')

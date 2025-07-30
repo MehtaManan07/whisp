@@ -5,6 +5,7 @@ from typing import Dict, Any
 
 from app.infra.db import User
 from app.modules.users.dto import CreateUserDto
+from app.modules.users.types import FindOrCreateResult
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ class UsersService:
 
     async def find_or_create(
         self, db: AsyncSession, user_data: CreateUserDto
-    ) -> Dict[str, Any]:
+    ) -> FindOrCreateResult:
         """Find existing user or create new one"""
         # Try to find existing user
         result = await db.execute(select(User).where(User.wa_id == user_data.wa_id))

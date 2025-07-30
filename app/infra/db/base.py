@@ -88,8 +88,8 @@ class BaseModel(Base):
 
     __abstract__ = True
 
-    id: Mapped[str] = mapped_column(
-        primary_key=True, default=lambda: str(uuid.uuid4()), index=True
+    id: Mapped[int] = mapped_column(
+        primary_key=True, autoincrement=True, index=True
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -98,4 +98,8 @@ class BaseModel(Base):
 
     updated_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), onupdate=func.now(), nullable=True
+    )
+    
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
     )

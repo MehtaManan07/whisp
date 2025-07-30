@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.infra.middleware.request_id_middleware import RequestIDMiddleware
 
 from app.communication.whatsapp.controller import router as whatsapp_router
+from app.modules.expenses.controller import router as expenses_router
 
 app = FastAPI(
     title="Whisp API",
@@ -21,7 +22,8 @@ app.add_middleware(
 )
 
 # Routers
-app.include_router(whatsapp_router, tags=["whatsapp"])
+app.include_router(whatsapp_router)
+app.include_router(expenses_router)
 
 
 @app.get("/demo")

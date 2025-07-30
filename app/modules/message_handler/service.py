@@ -20,6 +20,15 @@ class MessageHandlerService:
         """Handle new incoming messages"""
         self.logger.info(f"Handling new message: {payload}")
 
+        await users_service.find_or_create(
+            db=db,
+            user_data=CreateUserDto(
+                wa_id=payload.contact.wa_id,
+                phone_number=payload.from_,
+                name=payload.contact.profile.get("name", ""),
+            ),
+        )
+
         text = (
             payload.message.text.body.strip().lower() if payload.message.text else None
         )
@@ -68,9 +77,7 @@ class MessageHandlerService:
         """
         # Default fallback for free text
         return ProcessMessageResult(
-            messages=[
-                'Hmm, I didn\'t get that. Try "log" or "wakeup" to get started.'
-            ],
+            messages=['Hmm, I didn\'t get that. Try "log" or "wakeup" to get started.'],
             status="success",
         )
 

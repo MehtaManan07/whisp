@@ -13,13 +13,13 @@ if TYPE_CHECKING:
 class Expense(BaseModel):
     __tablename__ = "expenses"
 
-    # Foreign key relationships using string IDs from BaseModel
-    user_id: Mapped[str] = mapped_column(
-        String, ForeignKey("users.id"), nullable=False, index=True
+    # Foreign key relationships using integer IDs from BaseModel
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"), nullable=False, index=True
     )
 
-    category_id: Mapped[Optional[str]] = mapped_column(
-        String, ForeignKey("categories.id"), nullable=True, index=True
+    category_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("categories.id"), nullable=True, index=True
     )
 
     # Expense fields
