@@ -1,14 +1,15 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import Dict, Any
+from typing import Dict, Any, Literal, Optional
 
 from app.infra.db import Expense
 from app.modules.categories.dto import CreateCategoryDto
 from app.modules.expenses.dto import CreateExpenseModel
-from app.modules.categories.service import categories_service
+from app.modules.categories.service import CategoriesService
 import logging
 
 from app.utils.datetime import utc_now
+from sqlalchemy import func, extract
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ class ExpenseNotFoundError(Exception):
 class ExpensesService:
     def __init__(self):
         self.logger = logger
+        self.categories_service = CategoriesService()
 
     async def create_expense(
         self, db: AsyncSession, expense_data: CreateExpenseModel
@@ -27,7 +29,7 @@ class ExpensesService:
         """Create a new expense without returning any response"""
         self.logger.info(f"Creating new expense for user_id: {expense_data.user_id}")
 
-        category_data = await categories_service.find_or_create(
+        category_data = await self.categories_service.find_or_create(
             db=db,
             category_data=CreateCategoryDto(
                 name=expense_data.category_name or "",
@@ -112,3 +114,29 @@ class ExpensesService:
         )
         result = await db.execute(query)
         return {"data": list(result.scalars().all())}
+
+    async def get_monthly_total(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        month: Optional[int] = None,
+        year: Optional[int] = None,
+    ) -> Dict[Literal["total"], float]:
+        """Get total expenses for a user for a given month and year (defaults to current month/year)"""
+        """
+        Returns:
+            Dict[str, float]: {"total": float}
+        """
+        now = utc_now()
+        month = month or now.month
+        year = year or now.year
+
+        query = select(func.coalesce(func.sum(Expense.amount), 0)).where(
+            Expense.user_id == user_id,
+            Expense.deleted_at.is_(None),
+            extract("month", Expense.created_at) == month,
+            extract("year", Expense.created_at) == year,
+        )
+        result = await db.execute(query)
+        total = result.scalar_one()
+        return {"total": total}

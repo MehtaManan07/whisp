@@ -1,10 +1,12 @@
 import logging
+from typing_extensions import Literal
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from typing import Dict, Any
+from sqlalchemy import select, text
+from typing import Dict, Sequence
 
 from app.infra.db import Category
 from app.modules.categories.dto import CreateCategoryDto
+from app.modules.categories.sql import GET_RECENT_CATEGORIES
 from app.modules.categories.types import FindOrCreateResult
 
 logger = logging.getLogger(__name__)
@@ -41,6 +43,21 @@ class CategoriesService:
 
         return {"category": new_category, "is_existing_category": False}
 
+    # Get recent categories used
+    async def get_recent_categories(
+        self, db: AsyncSession, user_id: int, limit: int = 10
+    ) -> Dict[Literal["categories"], Sequence[Category]]:
+        """Fetch recent categories user by the user"""
+        self.logger.info(
+            f"Fetching recent categories for user_id: {user_id} with limit: {limit}"
+        )
 
-# Global service instance
-categories_service = CategoriesService()
+        sql = text(GET_RECENT_CATEGORIES)
+        result = await db.execute(sql, {"user_id": user_id, "limit": limit})
+
+        if result is None:
+            return {"categories": []}
+
+        categories = result.scalars().all()
+
+        return {"categories": categories}
