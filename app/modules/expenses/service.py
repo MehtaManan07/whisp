@@ -2,8 +2,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Dict, Any, Literal, Optional
 
+from app.agents.intent_classifier_agent import IntentClassifierAgent
 from app.infra.db import Expense
-from app.modules.categories.dto import CreateCategoryDto
 from app.modules.expenses.dto import CreateExpenseModel
 from app.modules.categories.service import CategoriesService
 import logging
@@ -29,12 +29,11 @@ class ExpensesService:
         """Create a new expense without returning any response"""
         self.logger.info(f"Creating new expense for user_id: {expense_data.user_id}")
 
-        category_data = await self.categories_service.find_or_create(
+        # Handle category and subcategory creation
+        category_data = await self.categories_service.find_or_create_with_parent(
             db=db,
-            category_data=CreateCategoryDto(
-                name=expense_data.category_name or "",
-                description=None,
-            ),
+            category_name=expense_data.category_name or "",
+            subcategory_name=expense_data.subcategory_name,
         )
 
         new_expense = Expense(
@@ -140,3 +139,12 @@ class ExpensesService:
         result = await db.execute(query)
         total = result.scalar_one()
         return {"total": total}
+    
+    async def demo_intent(self, text: str):
+        """
+        """
+        intent_classifier_agent = IntentClassifierAgent()
+        intent_result = await intent_classifier_agent.classify(text)
+        print(f"Intent result: {intent_result.intent}")
+        return intent_result
+        

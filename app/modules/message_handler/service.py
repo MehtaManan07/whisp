@@ -1,7 +1,9 @@
 import logging
+import random
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.intent_classifier_agent import IntentClassifierAgent, IntentType
 from app.communication.whatsapp.schema import HandleMessagePayload, ProcessMessageResult
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.service import users_service
@@ -20,7 +22,7 @@ class MessageHandlerService:
         """Handle new incoming messages"""
         self.logger.info(f"Handling new message: {payload}")
 
-        await users_service.find_or_create(
+        user_data = await users_service.find_or_create(
             db=db,
             user_data=CreateUserDto(
                 wa_id=payload.contact.wa_id,
@@ -28,6 +30,7 @@ class MessageHandlerService:
                 name=payload.contact.profile.get("name", ""),
             ),
         )
+        user, is_existing_user = user_data["user"], user_data["is_existing_user"]
 
         text = (
             payload.message.text.body.strip().lower() if payload.message.text else None
@@ -75,9 +78,26 @@ class MessageHandlerService:
       → else → fallback to LLM (generic chat)
 
         """
+
+        text = (
+            payload.message.text.body.strip().lower() if payload.message.text else None
+        )
+
+        if not text:
+            return None
+
+        intent_classifier_agent = IntentClassifierAgent()
+        intent_result = await intent_classifier_agent.classify(text)
+
+        if intent_result.intent == IntentType.UNKNOWN:
+            return ProcessMessageResult(
+                messages=[random.choice(message_constants.unknown_responses)],
+                status="success",
+            )
+
         # Default fallback for free text
         return ProcessMessageResult(
-            messages=['Hmm, I didn\'t get that. Try "log" or "wakeup" to get started.'],
+            messages=[f'Your intent is {intent_result.intent.value} (confidence: {intent_result.confidence:.2f})'],
             status="success",
         )
 

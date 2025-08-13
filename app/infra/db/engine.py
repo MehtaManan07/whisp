@@ -7,7 +7,7 @@ from sqlalchemy.pool import NullPool
 # Async SQLAlchemy engine - similar to TypeORM DataSource
 engine = create_async_engine(
     settings.db_url,
-    echo=(not settings.is_production),  # Log SQL queries in debug mode
+    echo=False,
     poolclass=(
         NullPool if not (settings.is_production) else None
     ),  # Disable pooling in debug

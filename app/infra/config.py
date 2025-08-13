@@ -11,6 +11,10 @@ class Config(BaseSettings):
     wa_verify_token: str = Field(default="", alias="WA_VERIFY_TOKEN")
     wa_access_token: str = Field(default="", alias="WA_ACCESS_TOKEN")
     wa_phone_number_id: str = Field(default="", alias="WA_PHONE_NUMBER_ID")
+    
+    # Redis Configuration
+    redis_url: str = Field(default="", alias="UPSTASH_REDIS_REST_URL")
+    redis_token: str = Field(default="", alias="UPSTASH_REDIS_REST_TOKEN")
 
     # LLM (Language Model) Configuration
     groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
@@ -19,6 +23,8 @@ class Config(BaseSettings):
         default="deepseek/deepseek-chat-v3-0324:free", alias="OPEN_ROUTER_MODEL_NAME"
     )
     is_production: bool = os.getenv("ENVIRONMENT", "development").lower() == "production"
+    
+    
 
     # Path to .env file (for loading env vars)
     class Config:

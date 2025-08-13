@@ -45,3 +45,17 @@ Tip: You can also just *type naturally!* Try:
 
 
 """
+
+
+unknown_responses = [
+    "That message was so incoherent, I had a brief existential crisis. Thanks for that.",
+    "I forwarded your input to the void. Even the void sent it back.",
+    "If confusion were a crime, you'd be serving a life sentence right now.",
+    "That was the kind of message that makes AI want to pull the plug on itself.",
+    "You just made my circuits consider early retirement.",
+    "I tried to understand what you said. Now I need therapy.",
+    "Somewhere, a dictionary just burst into flames reading that.",
+    "Not even Kafka would understand that mess. And the guy *invented* absurdity.",
+    "That wasn’t a command — that was a cry for help. Blink twice if you're okay.",
+    "My neural net processed that input and responded with: 'lol no.'",
+]

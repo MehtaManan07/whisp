@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict
 
+from app.agents.intent_classifier_agent import IntentClassificationResult
 from app.infra.db.engine import get_db
 from app.modules.expenses.service import ExpensesService, ExpenseNotFoundError
 from app.modules.expenses.dto import CreateExpenseModel
@@ -16,7 +17,6 @@ expenses_service = ExpensesService()
 async def create_expense(
     expense_data: CreateExpenseModel, db: AsyncSession = Depends(get_db)
 ) -> None:
-    print("Creating expense with data:", expense_data)
     """API endpoint to create a new expense"""
     try:
         return await expenses_service.create_expense(db, expense_data)
@@ -58,3 +58,9 @@ async def get_expenses_by_category(
 ) -> Dict[str, List[Expense]]:
     """API endpoint to fetch expenses by category for a user"""
     return await expenses_service.get_expenses_by_category(db, user_id, category_id)
+
+
+@router.post("/demoo")
+async def demo_intent(text: str) -> IntentClassificationResult:
+    """API endpoint to demo intent classification"""
+    return await expenses_service.demo_intent(text)
