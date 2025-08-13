@@ -65,7 +65,9 @@ class WhatsAppService:
                 now = datetime.now()
                 age = now - message_time
 
-                if age > timedelta(minutes=0.5):  # Ignore messages older than 0.5 minute
+                if age > timedelta(
+                    minutes=0.5
+                ):  # Ignore messages older than 0.5 minute
                     print(f"Ignoring old message from {from_number} (age: {age})")
                     continue
 
@@ -145,14 +147,6 @@ class WhatsAppService:
         # TODO: Implement message handler service
         logger.info(f"Handling reply from {data.from_}")
         return ProcessMessageResult(status="success", messages=["Reply received!"])
-
-    async def _handle_new_message(
-        self, data: HandleMessagePayload
-    ) -> Optional[ProcessMessageResult]:
-        """Handle new messages - implement your logic here"""
-        # TODO: Implement message handler service
-        logger.info(f"Handling new message from {data.from_}")
-        return ProcessMessageResult(status="success", messages=["Message received!"])
 
     async def _send_bot_responses(
         self, response: Optional[ProcessMessageResult], recipient: str

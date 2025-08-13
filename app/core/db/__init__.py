@@ -5,6 +5,7 @@ from app.core.db.base import Base, BaseModel
 from app.modules.users.models import User
 from app.modules.categories.models import Category
 from app.modules.expenses.models import Expense
+from app.modules.vendor_map.model import VendorMap
 
 # Export for easy importing
-__all__ = ["Base", "BaseModel", "User", "Category", "Expense"]
+__all__ = ["Base", "BaseModel", "User", "Category", "Expense", "VendorMap"]
