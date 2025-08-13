@@ -3,7 +3,7 @@ from sqlalchemy import select
 from typing import Dict, Any, Literal, Optional
 
 from app.agents.intent_classifier_agent import IntentClassifierAgent
-from app.infra.db import Expense
+from app.core.db import Expense
 from app.modules.expenses.dto import CreateExpenseModel
 from app.modules.categories.service import CategoriesService
 import logging

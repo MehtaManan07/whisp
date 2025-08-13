@@ -1,5 +1,5 @@
 from typing import TypedDict, Optional
-from app.infra.db import Expense
+from app.core.db import Expense
 
 
 class CreateExpenseResult(TypedDict):

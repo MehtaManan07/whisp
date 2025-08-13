@@ -1,6 +1,6 @@
 from typing import TypedDict
 
-from app.infra.db import Category
+from app.core.db import Category
 
 
 class FindOrCreateResult(TypedDict):

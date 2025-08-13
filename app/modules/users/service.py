@@ -2,7 +2,7 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.infra.db import User
+from app.core.db import User
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.types import FindOrCreateResult
 

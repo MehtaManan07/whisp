@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.communication.whatsapp.dto import SendMessageDto
 from app.communication.whatsapp.schema import WebhookPayload
 from app.communication.whatsapp.service import whatsapp_service
-from app.infra.db.engine import get_db
+from app.core.db.engine import get_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])

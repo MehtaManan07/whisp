@@ -8,7 +8,7 @@
 #     create_async_engine,
 # )
 # from sqlalchemy.orm import declarative_base
-# from app.infra.config import config as settings
+# from app.core.config import config as settings
 
 # Base = declarative_base()
 

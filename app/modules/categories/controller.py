@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict, Optional
 
-from app.infra.db.engine import get_db
+from app.core.db.engine import get_db
 from app.modules.categories.service import CategoriesService
 from app.modules.categories.dto import (
     CreateCategoryDto,

@@ -5,7 +5,7 @@ from sqlalchemy import select, text
 from typing import Dict, Sequence, Optional, List
 from sqlalchemy.orm import selectinload
 
-from app.infra.db import Category
+from app.core.db import Category
 from app.modules.categories.dto import (
     CreateCategoryDto,
     CategoryResponseDto,

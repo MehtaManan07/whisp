@@ -3,11 +3,11 @@ from typing import TYPE_CHECKING, Optional
 from sqlalchemy import ForeignKey, String, Float, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.infra.db.base import BaseModel
+from app.core.db.base import BaseModel
 from app.utils.datetime import utc_now
 
 if TYPE_CHECKING:
-    from app.infra.db import User, Category
+    from app.core.db import User, Category
 
 
 class Expense(BaseModel):

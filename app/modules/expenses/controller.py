@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict
 
 from app.agents.intent_classifier_agent import IntentClassificationResult
-from app.infra.db.engine import get_db
+from app.core.db.engine import get_db
 from app.modules.expenses.service import ExpensesService, ExpenseNotFoundError
 from app.modules.expenses.dto import CreateExpenseModel
 from app.modules.expenses.models import Expense

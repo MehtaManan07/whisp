@@ -2,10 +2,10 @@ from typing import TYPE_CHECKING, Optional, List
 from sqlalchemy import String, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.infra.db.base import BaseModel
+from app.core.db.base import BaseModel
 
 if TYPE_CHECKING:
-    from app.infra.db import Expense
+    from app.core.db import Expense
 
 
 class Category(BaseModel):

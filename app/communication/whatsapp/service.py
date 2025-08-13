@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.infra.config import config
+from app.core.config import config
 from app.communication.whatsapp.schema import (
     WebhookPayload,
     ProcessMessageResult,

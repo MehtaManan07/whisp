@@ -1,6 +1,6 @@
 from typing import TypedDict
 
-from app.infra.db import User
+from app.core.db import User
 
 
 class FindOrCreateResult(TypedDict):

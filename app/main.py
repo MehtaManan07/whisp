@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from app.infra.middleware.request_id_middleware import RequestIDMiddleware
+from app.core.middleware.request_id_middleware import RequestIDMiddleware
 
 from app.communication.whatsapp.controller import router as whatsapp_router
 from app.modules.expenses.controller import router as expenses_router

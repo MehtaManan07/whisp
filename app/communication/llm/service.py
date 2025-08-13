@@ -6,7 +6,7 @@ from datetime import datetime
 from dataclasses import dataclass
 import httpx
 
-from app.infra.config import config
+from app.core.config import config
 
 logger = logging.getLogger(__name__)
 
