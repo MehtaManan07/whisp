@@ -3,11 +3,13 @@ import random
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.intent_classifier_agent import IntentClassifierAgent, IntentType
+
 from app.communication.whatsapp.schema import HandleMessagePayload, ProcessMessageResult
 from app.modules.users.dto import CreateUserDto
+from app.core.db import User
 from app.modules.users.service import users_service
 import app.core.constants.whatsapp_responses as message_constants
+from app.agents.intent_classifier import IntentClassifierAgent, IntentType
 
 logger = logging.getLogger(__name__)
 
@@ -15,16 +17,17 @@ logger = logging.getLogger(__name__)
 class MessageHandlerService:
     """
     Central service for handling incoming WhatsApp messages.
-    
+
     Routes messages based on type (command, reply, free text) and intent.
     """
+
     def __init__(self):
         self.logger = logger
 
     # =============================================================================
     # MAIN ENTRY POINT
     # =============================================================================
-    
+
     async def handle_new_message(
         self, payload: HandleMessagePayload, db: AsyncSession
     ) -> Optional[ProcessMessageResult]:
@@ -33,7 +36,7 @@ class MessageHandlerService:
 
         # Ensure user exists in DB
         user = await self._ensure_user(payload, db)
-        
+
         # Extract and validate text
         text = self._extract_text(payload)
         if not text:
@@ -45,12 +48,12 @@ class MessageHandlerService:
         elif payload.message.context:
             return await self.handle_reply(payload, db)
         else:
-            return await self.handle_free_text(payload, db)
+            return await self.handle_free_text(payload, db, user)
 
     # =============================================================================
     # MESSAGE TYPE HANDLERS
     # =============================================================================
-    
+
     async def handle_command(
         self, payload: HandleMessagePayload, db: AsyncSession
     ) -> Optional[ProcessMessageResult]:
@@ -72,11 +75,11 @@ class MessageHandlerService:
                 )
 
     async def handle_free_text(
-        self, payload: HandleMessagePayload, db: AsyncSession
+        self, payload: HandleMessagePayload, db: AsyncSession, user: User
     ) -> Optional[ProcessMessageResult]:
         """
         Handle free text messages using intent classification
-        
+
         Flow:
         → classify intent (expense logging / reflection / chat)
         → if expense → parse it → log to DB → return friendly reply
@@ -99,7 +102,7 @@ class MessageHandlerService:
 
         # Default fallback for free text
         return ProcessMessageResult(
-            messages=[f'Your intent is {intent_result.intent.value} (confidence: {intent_result.confidence:.2f})'],
+            messages=[f"Your intent is {intent_result.to_json()}"],
             status="success",
         )
 

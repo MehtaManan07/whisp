@@ -49,7 +49,6 @@ User Information:
 - Phone: {self.user.phone_number}
 - Streak: {self.user.streak} days
 - Metadata: {json.dumps(self.user.meta) if self.user.meta else 'None'}
-- Currency: INR (₹)
 """
 
         # Combine all parts
@@ -201,7 +200,7 @@ User Information:
     def post_process_response(self, response: str) -> str:
         """
         Post-process the response before sending to user.
-        Add currency formatting, length limits, streak motivation, etc.
+        Add length limits, streak motivation, etc.
         """
         if not response:
             return "I apologize, but I couldn't generate a proper response."

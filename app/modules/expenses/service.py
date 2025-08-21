@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Dict, Any, Literal, Optional
 
-from app.agents.intent_classifier_agent import IntentClassifierAgent
+from app.agents.intent_classifier.agent import IntentClassifierAgent
 from app.core.db import Expense
 from app.modules.expenses.dto import CreateExpenseModel
 from app.modules.categories.service import CategoriesService
@@ -139,12 +139,9 @@ class ExpensesService:
         result = await db.execute(query)
         total = result.scalar_one()
         return {"total": total}
-    
+
     async def demo_intent(self, text: str):
-        """
-        """
+        """ """
         intent_classifier_agent = IntentClassifierAgent()
         intent_result = await intent_classifier_agent.classify(text)
-        print(f"Intent result: {intent_result.intent}")
         return intent_result
-        

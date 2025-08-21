@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict
 
-from app.agents.intent_classifier_agent import IntentClassificationResult
+
+from app.agents.intent_classifier.agent import IntentClassificationResult
 from app.core.db.engine import get_db
 from app.modules.expenses.service import ExpensesService, ExpenseNotFoundError
 from app.modules.expenses.dto import CreateExpenseModel

@@ -1,37 +1,37 @@
 import json
 import logging
-from typing import Dict, Optional, Any, Union
-from datetime import datetime
+from typing import Dict, Optional, Any
 from dataclasses import dataclass
 from enum import Enum
 from app.communication.llm.service import llm_service, LLMServiceError
+import app.agents.intent_classifier.prompts as intent_classifier_prompts
+from app.agents.intent_classifier.types import IntentType, IntentModule
 
 logger = logging.getLogger(__name__)
-
-
-class IntentType(str, Enum):
-    """Enumeration of supported intent types."""
-    LOG_EXPENSE = "log_expense"
-    SET_BUDGET = "set_budget"
-    VIEW_BUDGET = "view_budget"
-    VIEW_EXPENSES = "view_expenses"
-    SET_GOAL = "set_goal"
-    SET_REMINDER = "set_reminder"
-    VIEW_GOALS = "view_goals"
-    VIEW_REMINDERS = "view_reminders"
-    REPORT_REQUEST = "report_request"
-    GREETING = "greeting"
-    HELP = "help"
-    UNKNOWN = "unknown"
 
 
 @dataclass
 class IntentClassificationResult:
     """Result of intent classification."""
+
     intent: IntentType
+    module: IntentModule
     confidence: float
     entities: Dict[str, Any]
     raw: Optional[str] = None
+
+    def to_json(self) -> str:
+        """Convert the result to a stringified JSON representation."""
+        return json.dumps(
+            {
+                "intent": self.intent.value,
+                "module": self.module.value,
+                "confidence": self.confidence,
+                "entities": self.entities,
+                "raw": self.raw,
+            },
+            ensure_ascii=False,
+        )
 
 
 class IntentClassifierAgent:
@@ -44,49 +44,21 @@ class IntentClassifierAgent:
         try:
             return IntentType(intent_str)
         except ValueError:
-            logger.warning(f"Unknown intent string: {intent_str}, defaulting to UNKNOWN")
+            logger.warning(
+                f"Unknown intent string: {intent_str}, defaulting to UNKNOWN"
+            )
             return IntentType.UNKNOWN
 
-    def build_prompt(self, message: str) -> str:
-        current_date = datetime.now().strftime("%Y-%m-%d")
+    def _parse_module(self, module_str: str) -> IntentModule:
+        """Safely parse module string to IntentModule enum."""
+        try:
+            return IntentModule(module_str)
+        except ValueError:
+            logger.warning(f"Unknown module string: {module_str}, defaulting to UNKNOWN")
+            return IntentModule.UNKNOWN
 
-        return f"""
-You are an intent classification assistant for a personal finance chatbot.
-
-Your job is to classify the user's message into one of the following high-level intents:
-
-- "log_expense"
-- "view_expenses"
-- "view_expenses_by_category"
-- "set_budget"
-- "view_budget"
-- "view_expenses"
-- "set_goal"
-- "set_reminder"
-- "view_goals"
-- "view_reminders"
-- "report_request"
-- "greeting"
-- "help"
-- "unknown"
-
-Only return a JSON object with fields:
-- "intent": string (one of the above)
-- "confidence": number between 0 and 1
-- "entities": (optional) any extracted fields like amount, category, date, etc.
-
-Today's date is {current_date}.
-
-User Message:
-\"\"\"{message}\"\"\"
-        
-Return JSON only. Do not add any explanation.
-"""
-
-    async def classify(
-        self, message: str
-    ) -> IntentClassificationResult:
-        prompt = self.build_prompt(message)
+    async def classify(self, message: str) -> IntentClassificationResult:
+        prompt = intent_classifier_prompts.build_prompt(message)
 
         try:
             # Use llm_service for the API call
@@ -98,6 +70,7 @@ Return JSON only. Do not add any explanation.
             parsed = json.loads(content)
 
             intent_str = parsed.get("intent", "unknown")
+            module_str = parsed.get("module", "unknown")
             confidence = float(parsed.get("confidence", 0.0))
             entities = parsed.get("entities", {})
 
@@ -106,6 +79,7 @@ Return JSON only. Do not add any explanation.
                 confidence=confidence,
                 entities=entities,
                 raw=content,
+                module=self._parse_module(module_str),
             )
 
         except json.JSONDecodeError as e:
@@ -115,6 +89,7 @@ Return JSON only. Do not add any explanation.
                 confidence=0.0,
                 entities={},
                 raw=None,
+                module=IntentModule.UNKNOWN,
             )
         except LLMServiceError as e:
             logger.error(f"LLM service error during intent classification: {e}")
@@ -123,6 +98,7 @@ Return JSON only. Do not add any explanation.
                 confidence=0.0,
                 entities={},
                 raw=None,
+                module=IntentModule.UNKNOWN,
             )
         except Exception as e:
             logger.error(f"Intent classification failed: {e}")
@@ -131,4 +107,5 @@ Return JSON only. Do not add any explanation.
                 confidence=0.0,
                 entities={},
                 raw=None,
+                module=IntentModule.UNKNOWN,
             )

@@ -241,7 +241,6 @@ class LLMService:
         Parse the API response into an LLMResponse object.
         """
         try:
-            print(f"Data: {json.dumps(data, indent=2)}")
             if "choices" not in data or not data["choices"]:
                 raise LLMAPIError("No choices in API response")
 
