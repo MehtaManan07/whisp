@@ -1,4 +1,7 @@
+from dataclasses import dataclass
 from enum import Enum
+import json
+from typing import Any, Dict, Optional
 
 
 class IntentType(str, Enum):
@@ -30,3 +33,27 @@ class IntentModule(str, Enum):
     GREETING = "greeting"
     HELP = "help"
     UNKNOWN = "unknown"
+
+
+@dataclass
+class IntentClassificationResult:
+    """Result of intent classification."""
+
+    intent: IntentType
+    module: IntentModule
+    confidence: float
+    entities: Dict[str, Any]
+    raw: Optional[str] = None
+
+    def to_json(self) -> str:
+        """Convert the result to a stringified JSON representation."""
+        return json.dumps(
+            {
+                "intent": self.intent.value,
+                "module": self.module.value,
+                "confidence": self.confidence,
+                "entities": self.entities,
+                "raw": self.raw,
+            },
+            ensure_ascii=False,
+        )

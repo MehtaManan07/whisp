@@ -5,34 +5,9 @@ from dataclasses import dataclass
 from enum import Enum
 from app.communication.llm.service import llm_service, LLMServiceError
 import app.agents.intent_classifier.prompts as intent_classifier_prompts
-from app.agents.intent_classifier.types import IntentType, IntentModule
+from app.agents.intent_classifier.types import IntentClassificationResult, IntentType, IntentModule
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class IntentClassificationResult:
-    """Result of intent classification."""
-
-    intent: IntentType
-    module: IntentModule
-    confidence: float
-    entities: Dict[str, Any]
-    raw: Optional[str] = None
-
-    def to_json(self) -> str:
-        """Convert the result to a stringified JSON representation."""
-        return json.dumps(
-            {
-                "intent": self.intent.value,
-                "module": self.module.value,
-                "confidence": self.confidence,
-                "entities": self.entities,
-                "raw": self.raw,
-            },
-            ensure_ascii=False,
-        )
-
 
 class IntentClassifierAgent:
     def __init__(self):
