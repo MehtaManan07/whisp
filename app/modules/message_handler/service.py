@@ -4,6 +4,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
+from app.agents.intent_classifier.router import route_intent
 from app.communication.whatsapp.schema import HandleMessagePayload, ProcessMessageResult
 from app.modules.users.dto import CreateUserDto
 from app.core.db import User
@@ -93,6 +94,10 @@ class MessageHandlerService:
         # Classify intent
         intent_classifier_agent = IntentClassifierAgent()
         intent_result = await intent_classifier_agent.classify(text)
+        response = await route_intent(
+            intent_result=intent_result, user_id=user.id, db=db
+        )
+        print(response)
 
         if intent_result.intent == IntentType.UNKNOWN:
             return ProcessMessageResult(
