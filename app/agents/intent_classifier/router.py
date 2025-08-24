@@ -3,6 +3,8 @@ import pkgutil
 import inspect
 from pathlib import Path
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.agents.intent_classifier.decorators import INTENT_REGISTRY
 from app.agents.intent_classifier.types import IntentClassificationResult
 
@@ -37,9 +39,7 @@ discover_handlers()
 async def route_intent(
     intent_result: IntentClassificationResult,
     user_id: int,
-    db,
-    redis=None,
-    scheduler=None,
+    db: AsyncSession,
 ):
     for cls_name, handlers in INTENT_REGISTRY.items():
         if intent_result.intent.value in handlers:
@@ -47,10 +47,6 @@ async def route_intent(
             handler_instance = handler_cls()
             method_name = handlers[intent_result.intent.value]
             method = getattr(handler_instance, method_name)
-            return await method(
-                intent_result=intent_result,
-                user_id=user_id,
-                db=db,
-            )
+            return await method(intent_result=intent_result, user_id=user_id, db=db)
 
     raise ValueError(f"No handler found for intent {intent_result.intent}")
