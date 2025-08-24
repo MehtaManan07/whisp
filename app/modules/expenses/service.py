@@ -4,7 +4,13 @@ from typing import Dict, Any, Literal, Optional
 
 from app.agents.intent_classifier.agent import IntentClassifierAgent
 from app.core.db import Expense
-from app.modules.expenses.dto import CreateExpenseModel
+from app.modules.expenses.dto import (
+    CreateExpenseModel,
+    DeleteExpenseModel,
+    GetAllExpensesModel,
+    GetExpensesByCategoryModel,
+    GetMonthlyTotalModel,
+)
 from app.modules.categories.service import CategoriesService
 import logging
 
@@ -23,46 +29,45 @@ class ExpensesService:
         self.logger = logger
         self.categories_service = CategoriesService()
 
-    async def create_expense(
-        self, db: AsyncSession, expense_data: CreateExpenseModel
-    ) -> None:
+    async def create_expense(self, db: AsyncSession, data: CreateExpenseModel) -> None:
         """Create a new expense without returning any response"""
-        self.logger.info(f"Creating new expense for user_id: {expense_data.user_id}")
+        self.logger.info(f"Creating new expense for user_id: {data.user_id}")
 
         # Handle category and subcategory creation
         category_data = await self.categories_service.find_or_create_with_parent(
             db=db,
-            category_name=expense_data.category_name or "",
-            subcategory_name=expense_data.subcategory_name,
+            category_name=data.category_name or "",
+            subcategory_name=data.subcategory_name,
         )
 
         new_expense = Expense(
-            user_id=expense_data.user_id,
+            user_id=data.user_id,
             category_id=(
                 category_data["category"].id if category_data["category"] else None
             ),
-            amount=expense_data.amount,
-            note=expense_data.note,
-            source_message_id=expense_data.source_message_id,
+            amount=data.amount,
+            note=data.note,
+            source_message_id=data.source_message_id,
         )
 
         db.add(new_expense)
         await db.commit()
 
-        self.logger.info(f"Created expense for user_id: {expense_data.user_id}")
+        self.logger.info(f"Created expense for user_id: {data.user_id}")
 
         return None
 
-    async def delete_expense(self, db: AsyncSession, expense_id: int) -> None:
+    async def delete_expense(self, db: AsyncSession, data: DeleteExpenseModel) -> None:
         """Soft delete an expense by setting deleted_at (no return)"""
-        self.logger.info(f"Deleting expense with ID: {expense_id}")
+        self.logger.info(f"Deleting expense with ID: {data.id}")
+        id = data.id
 
-        expense = await db.get(Expense, expense_id)
+        expense = await db.scalar(
+            select(Expense).where(Expense.id == id, Expense.deleted_at.is_(None))
+        )
         if expense is None or expense.deleted_at is not None:
-            self.logger.warning(
-                f"Expense with ID {expense_id} not found or already deleted"
-            )
-            raise ExpenseNotFoundError(f"Expense {expense_id} not found")
+            self.logger.warning(f"Expense with ID {id} not found or already deleted")
+            raise ExpenseNotFoundError(f"Expense {id} not found")
 
         expense.deleted_at = utc_now()
         await db.commit()
@@ -86,29 +91,29 @@ class ExpensesService:
         return None
 
     async def get_all_expenses_for_user(
-        self, db: AsyncSession, user_id: int
+        self, db: AsyncSession, data: GetAllExpensesModel
     ) -> Dict[str, list[Expense]]:
         """Retrieve all non-deleted expenses for a specific user"""
-        self.logger.info(f"Fetching all expenses for user_id: {user_id}")
+        self.logger.info(f"Fetching all expenses for user_id: {data.user_id}")
 
         query = select(Expense).where(
-            Expense.user_id == user_id,
+            Expense.user_id == data.user_id,
             Expense.deleted_at.is_(None),
         )
         result = await db.execute(query)
         return {"data": list(result.scalars().all())}
 
     async def get_expenses_by_category(
-        self, db: AsyncSession, user_id: int, category_id: int
+        self, db: AsyncSession, data: GetExpensesByCategoryModel
     ) -> Dict[str, list[Expense]]:
         """Retrieve non-deleted expenses filtered by category"""
         self.logger.info(
-            f"Fetching expenses for user_id: {user_id} and category_id: {category_id}"
+            f"Fetching expenses for user_id: {data.user_id} and category_id: {data.category_id}"
         )
 
         query = select(Expense).where(
-            Expense.user_id == user_id,
-            Expense.category_id == category_id,
+            Expense.user_id == data.user_id,
+            Expense.category_id == data.category_id,
             Expense.deleted_at.is_(None),
         )
         result = await db.execute(query)
@@ -117,9 +122,7 @@ class ExpensesService:
     async def get_monthly_total(
         self,
         db: AsyncSession,
-        user_id: int,
-        month: Optional[int] = None,
-        year: Optional[int] = None,
+        data: GetMonthlyTotalModel,
     ) -> Dict[Literal["total"], float]:
         """Get total expenses for a user for a given month and year (defaults to current month/year)"""
         """
@@ -127,11 +130,11 @@ class ExpensesService:
             Dict[str, float]: {"total": float}
         """
         now = utc_now()
-        month = month or now.month
-        year = year or now.year
+        month = data.month or now.month
+        year = data.year or now.year
 
         query = select(func.coalesce(func.sum(Expense.amount), 0)).where(
-            Expense.user_id == user_id,
+            Expense.user_id == data.user_id,
             Expense.deleted_at.is_(None),
             extract("month", Expense.created_at) == month,
             extract("year", Expense.created_at) == year,
