@@ -44,5 +44,7 @@ class Expense(BaseModel):
         "Category", back_populates="expenses", lazy="selectin"
     )
 
+    vendor: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
     def __repr__(self) -> str:
         return f"<Expense(amount={self.amount}, user_id='{self.user_id}')>"

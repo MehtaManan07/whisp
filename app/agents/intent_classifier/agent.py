@@ -5,9 +5,10 @@ from dataclasses import dataclass
 from enum import Enum
 from app.communication.llm.service import llm_service, LLMServiceError
 import app.agents.intent_classifier.prompts as intent_classifier_prompts
-from app.agents.intent_classifier.types import IntentClassificationResult, IntentType, IntentModule
+from app.agents.intent_classifier.types import IntentClassificationResult, IntentType
 
 logger = logging.getLogger(__name__)
+
 
 class IntentClassifierAgent:
     def __init__(self):
@@ -24,14 +25,6 @@ class IntentClassifierAgent:
             )
             return IntentType.UNKNOWN
 
-    def _parse_module(self, module_str: str) -> IntentModule:
-        """Safely parse module string to IntentModule enum."""
-        try:
-            return IntentModule(module_str)
-        except ValueError:
-            logger.warning(f"Unknown module string: {module_str}, defaulting to UNKNOWN")
-            return IntentModule.UNKNOWN
-
     async def classify(self, message: str) -> IntentClassificationResult:
         prompt = intent_classifier_prompts.build_prompt(message)
 
@@ -45,7 +38,6 @@ class IntentClassifierAgent:
             parsed = json.loads(content)
 
             intent_str = parsed.get("intent", "unknown")
-            module_str = parsed.get("module", "unknown")
             confidence = float(parsed.get("confidence", 0.0))
             entities = parsed.get("entities", {})
 
@@ -54,7 +46,6 @@ class IntentClassifierAgent:
                 confidence=confidence,
                 entities=entities,
                 raw=content,
-                module=self._parse_module(module_str),
             )
 
         except json.JSONDecodeError as e:
@@ -64,7 +55,6 @@ class IntentClassifierAgent:
                 confidence=0.0,
                 entities={},
                 raw=None,
-                module=IntentModule.UNKNOWN,
             )
         except LLMServiceError as e:
             logger.error(f"LLM service error during intent classification: {e}")
@@ -73,7 +63,6 @@ class IntentClassifierAgent:
                 confidence=0.0,
                 entities={},
                 raw=None,
-                module=IntentModule.UNKNOWN,
             )
         except Exception as e:
             logger.error(f"Intent classification failed: {e}")
@@ -82,5 +71,4 @@ class IntentClassifierAgent:
                 confidence=0.0,
                 entities={},
                 raw=None,
-                module=IntentModule.UNKNOWN,
             )

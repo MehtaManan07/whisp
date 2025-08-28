@@ -1,15 +1,16 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import Dict, Any, Literal, Optional
+from typing import Dict, Any, Literal
+import dateparser
 
 from app.agents.intent_classifier.agent import IntentClassifierAgent
-from app.core.db import Expense
+from app.core.db import Expense, Category
 from app.modules.expenses.dto import (
     CreateExpenseModel,
     DeleteExpenseModel,
+    ExpenseAggregationType,
     GetAllExpensesModel,
-    GetExpensesByCategoryModel,
-    GetMonthlyTotalModel,
+    ExpenseResponse,
 )
 from app.modules.categories.service import CategoriesService
 import logging
@@ -28,6 +29,69 @@ class ExpensesService:
     def __init__(self):
         self.logger = logger
         self.categories_service = CategoriesService()
+
+    async def get_expenses(self, db: AsyncSession, data: GetAllExpensesModel):
+        # Parse and validate dates only once
+        start_date = dateparser.parse(data.start_date) if data.start_date else None
+        end_date = dateparser.parse(data.end_date) if data.end_date else None
+
+        if start_date and end_date and start_date >= end_date:
+            end_date = start_date
+
+        # Validate amount ranges
+        if data.start_amount is not None and data.end_amount is not None:
+            if data.start_amount >= data.end_amount:
+                data.end_amount = data.start_amount
+
+        field_map = {
+            "sum": func.sum(Expense.amount),
+            "count": func.count(),
+            "avg": func.avg(Expense.amount),
+            "min": func.min(Expense.amount),
+            "max": func.max(Expense.amount),
+        }
+
+        agg_func = (
+            field_map.get(data.aggregation_type) if data.aggregation_type else None
+        )
+        query = select(Expense if agg_func is None else agg_func).where(
+            Expense.user_id == data.user_id
+        )
+
+        if data.vendor:
+            query = query.where(Expense.vendor == data.vendor)
+        if start_date:
+            query = query.where(Expense.timestamp >= start_date)
+        if end_date:
+            query = query.where(Expense.timestamp <= end_date)
+        if data.start_amount is not None:
+            query = query.where(Expense.amount >= data.start_amount)
+        if data.end_amount is not None:
+            query = query.where(Expense.amount <= data.end_amount)
+        if data.category_name:
+            query = query.where(
+                Expense.category.has(
+                    (Category.name == data.category_name)
+                    & (Category.parent_id.is_(None))
+                )
+            )
+        if data.subcategory_name:
+            query = query.where(
+                Expense.category.has(
+                    (Category.name == data.subcategory_name)
+                    & (Category.parent_id.isnot(None))
+                )
+            )
+
+        expenses = await db.execute(query)
+        expenses = expenses.scalars().all()
+        return [
+            ExpenseResponse(
+                **expense.__dict__,
+                category_name=expense.category.name if expense.category else None,
+            ).to_human_message()
+            for expense in expenses
+        ] if agg_func is None else expenses
 
     async def create_expense(self, db: AsyncSession, data: CreateExpenseModel) -> None:
         """Create a new expense without returning any response"""
@@ -48,6 +112,8 @@ class ExpensesService:
             amount=data.amount,
             note=data.note,
             source_message_id=data.source_message_id,
+            vendor=data.vendor,
+            timestamp=data.timestamp,
         )
 
         db.add(new_expense)
@@ -90,61 +156,12 @@ class ExpensesService:
         await db.commit()
         return None
 
-    async def get_all_expenses_for_user(
-        self, db: AsyncSession, data: GetAllExpensesModel
-    ) -> Dict[str, list[Expense]]:
-        """Retrieve all non-deleted expenses for a specific user"""
-        self.logger.info(f"Fetching all expenses for user_id: {data.user_id}")
+    async def demo_intent(self, db: AsyncSession, text: str):
+        from app.agents.intent_classifier import route_intent
 
-        query = select(Expense).where(
-            Expense.user_id == data.user_id,
-            Expense.deleted_at.is_(None),
-        )
-        result = await db.execute(query)
-        return {"data": list(result.scalars().all())}
-
-    async def get_expenses_by_category(
-        self, db: AsyncSession, data: GetExpensesByCategoryModel
-    ) -> Dict[str, list[Expense]]:
-        """Retrieve non-deleted expenses filtered by category"""
-        self.logger.info(
-            f"Fetching expenses for user_id: {data.user_id} and category_id: {data.category_id}"
-        )
-
-        query = select(Expense).where(
-            Expense.user_id == data.user_id,
-            Expense.category_id == data.category_id,
-            Expense.deleted_at.is_(None),
-        )
-        result = await db.execute(query)
-        return {"data": list(result.scalars().all())}
-
-    async def get_monthly_total(
-        self,
-        db: AsyncSession,
-        data: GetMonthlyTotalModel,
-    ) -> Dict[Literal["total"], float]:
-        """Get total expenses for a user for a given month and year (defaults to current month/year)"""
-        """
-        Returns:
-            Dict[str, float]: {"total": float}
-        """
-        now = utc_now()
-        month = data.month or now.month
-        year = data.year or now.year
-
-        query = select(func.coalesce(func.sum(Expense.amount), 0)).where(
-            Expense.user_id == data.user_id,
-            Expense.deleted_at.is_(None),
-            extract("month", Expense.created_at) == month,
-            extract("year", Expense.created_at) == year,
-        )
-        result = await db.execute(query)
-        total = result.scalar_one()
-        return {"total": total}
-
-    async def demo_intent(self, text: str):
         """ """
         intent_classifier_agent = IntentClassifierAgent()
         intent_result = await intent_classifier_agent.classify(text)
+        response = await route_intent(intent_result=intent_result, user_id=2, db=db)
+        print(response)
         return intent_result

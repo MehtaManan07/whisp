@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 from enum import Enum
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Protocol, runtime_checkable
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class IntentType(str, Enum):
@@ -22,25 +23,11 @@ class IntentType(str, Enum):
     UNKNOWN = "unknown"
 
 
-class IntentModule(str, Enum):
-    """Enumeration of supported intent routes."""
-
-    EXPENSE = "expense"
-    BUDGET = "budget"
-    GOAL = "goal"
-    REMINDER = "reminder"
-    REPORT = "report"
-    GREETING = "greeting"
-    HELP = "help"
-    UNKNOWN = "unknown"
-
-
 @dataclass
 class IntentClassificationResult:
     """Result of intent classification."""
 
     intent: IntentType
-    module: IntentModule
     confidence: float
     entities: Dict[str, Any]
     raw: Optional[str] = None
@@ -50,10 +37,23 @@ class IntentClassificationResult:
         return json.dumps(
             {
                 "intent": self.intent.value,
-                "module": self.module.value,
                 "confidence": self.confidence,
                 "entities": self.entities,
                 "raw": self.raw,
             },
             ensure_ascii=False,
         )
+
+
+@runtime_checkable
+class IntentHandlerProtocol(Protocol):
+    """Protocol defining the signature for intent handler methods."""
+    
+    async def __call__(
+        self, 
+        intent_result: IntentClassificationResult, 
+        user_id: int, 
+        db: AsyncSession
+    ) -> Any:
+        """Handle the intent and return a response."""
+        ...
