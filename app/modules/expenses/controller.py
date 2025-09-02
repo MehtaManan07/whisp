@@ -54,7 +54,6 @@ async def get_all_expenses(
     data: GetAllExpensesModel = Depends(GetAllExpensesModel),
 ):
     """API endpoint to fetch all expenses for a user"""
-    print(data)
     return await expenses_service.get_expenses(db=db, data=data)
 
 

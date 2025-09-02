@@ -26,26 +26,30 @@ class IntentClassifierAgent:
             return IntentType.UNKNOWN
 
     async def classify(self, message: str) -> IntentClassificationResult:
-        prompt = intent_classifier_prompts.build_prompt(message)
+        intent_prompt = intent_classifier_prompts.build_intent_prompt(message)
 
         try:
             # Use llm_service for the API call
-            response = await llm_service.complete(
-                prompt=prompt, max_tokens=500, temperature=0
+            intent_response = await llm_service.complete(
+                prompt=intent_prompt, max_tokens=500, temperature=0
             )
 
-            content = response.content
-            parsed = json.loads(content)
+            intent_content = intent_response.content
+            intent_parsed = json.loads(intent_content)
 
-            intent_str = parsed.get("intent", "unknown")
-            confidence = float(parsed.get("confidence", 0.0))
-            entities = parsed.get("entities", {})
+            intent = self._parse_intent(intent_parsed.get("intent", "unknown"))
+            dto_prompt = intent_classifier_prompts.build_dto_prompt(message, intent, 2)
+            dto_response = await llm_service.complete(
+                prompt=dto_prompt, max_tokens=500, temperature=0
+            )
+            dto_content = dto_response.content
+            dto_parsed = json.loads(dto_content)
+            # confidence = float(intent_parsed.get("confidence", 0.0))
 
             return IntentClassificationResult(
-                intent=self._parse_intent(intent_str),
-                confidence=confidence,
-                entities=entities,
-                raw=content,
+                intent=intent,
+                confidence=1.0,
+                raw=dto_parsed,
             )
 
         except json.JSONDecodeError as e:
@@ -53,7 +57,6 @@ class IntentClassifierAgent:
             return IntentClassificationResult(
                 intent=IntentType.UNKNOWN,
                 confidence=0.0,
-                entities={},
                 raw=None,
             )
         except LLMServiceError as e:
@@ -61,7 +64,6 @@ class IntentClassifierAgent:
             return IntentClassificationResult(
                 intent=IntentType.UNKNOWN,
                 confidence=0.0,
-                entities={},
                 raw=None,
             )
         except Exception as e:
@@ -69,6 +71,5 @@ class IntentClassifierAgent:
             return IntentClassificationResult(
                 intent=IntentType.UNKNOWN,
                 confidence=0.0,
-                entities={},
                 raw=None,
             )

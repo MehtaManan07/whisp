@@ -13,11 +13,14 @@ class ExpenseHandlers(BaseHandlers):
 
     @intent_handler(IntentType.LOG_EXPENSE)
     async def log_expense(
-        self, 
-        intent_result: IntentClassificationResult, 
-        user_id: int, 
-        db: AsyncSession
+        self, intent_result: IntentClassificationResult, user_id: int, db: AsyncSession
     ) -> Dict[str, Any]:
         """Handle log expense intent."""
-        print(intent_result, user_id)
+        return {"entity": intent_result}
+
+    @intent_handler(IntentType.VIEW_EXPENSES)
+    async def view_expenses(
+        self, intent_result: IntentClassificationResult, user_id: int, db: AsyncSession
+    ) -> Dict[str, Any]:
+        """Handle view expenses intent."""
         return {"entity": intent_result}

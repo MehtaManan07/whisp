@@ -86,7 +86,6 @@ class ExpenseResponse(BaseModel):
 
         # # Add IDs for reference if needed
         # parts.append(f"[Expense ID: {self.id}]")
-        print(parts)
 
         return " ".join(parts)
 

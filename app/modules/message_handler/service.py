@@ -97,7 +97,6 @@ class MessageHandlerService:
         response = await route_intent(
             intent_result=intent_result, user_id=user.id, db=db
         )
-        print(response)
 
         if intent_result.intent == IntentType.UNKNOWN:
             return ProcessMessageResult(

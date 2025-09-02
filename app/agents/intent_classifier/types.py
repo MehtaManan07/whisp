@@ -1,8 +1,11 @@
 from dataclasses import dataclass
 from enum import Enum
 import json
-from typing import Any, Dict, Optional, Protocol, runtime_checkable
+from typing import Any, Dict, Optional, Protocol, Type, runtime_checkable
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.modules.expenses.dto import CreateExpenseModel, GetAllExpensesModel
 
 
 class IntentType(str, Enum):
@@ -10,17 +13,19 @@ class IntentType(str, Enum):
 
     LOG_EXPENSE = "log_expense"
     VIEW_EXPENSES = "view_expenses"
-    VIEW_EXPENSES_BY_CATEGORY = "view_expenses_by_category"
     SET_BUDGET = "set_budget"
     VIEW_BUDGET = "view_budget"
     SET_GOAL = "set_goal"
     SET_REMINDER = "set_reminder"
     VIEW_GOALS = "view_goals"
     VIEW_REMINDERS = "view_reminders"
-    REPORT_REQUEST = "report_request"
-    GREETING = "greeting"
-    HELP = "help"
     UNKNOWN = "unknown"
+
+
+INTENT_TO_DTO: Dict[IntentType, Type[BaseModel]] = {
+    IntentType.LOG_EXPENSE: CreateExpenseModel,
+    IntentType.VIEW_EXPENSES: GetAllExpensesModel,
+}
 
 
 @dataclass
@@ -29,7 +34,6 @@ class IntentClassificationResult:
 
     intent: IntentType
     confidence: float
-    entities: Dict[str, Any]
     raw: Optional[str] = None
 
     def to_json(self) -> str:
@@ -38,7 +42,6 @@ class IntentClassificationResult:
             {
                 "intent": self.intent.value,
                 "confidence": self.confidence,
-                "entities": self.entities,
                 "raw": self.raw,
             },
             ensure_ascii=False,
@@ -48,12 +51,9 @@ class IntentClassificationResult:
 @runtime_checkable
 class IntentHandlerProtocol(Protocol):
     """Protocol defining the signature for intent handler methods."""
-    
+
     async def __call__(
-        self, 
-        intent_result: IntentClassificationResult, 
-        user_id: int, 
-        db: AsyncSession
+        self, intent_result: IntentClassificationResult, user_id: int, db: AsyncSession
     ) -> Any:
         """Handle the intent and return a response."""
         ...

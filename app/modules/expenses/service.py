@@ -163,5 +163,4 @@ class ExpensesService:
         intent_classifier_agent = IntentClassifierAgent()
         intent_result = await intent_classifier_agent.classify(text)
         response = await route_intent(intent_result=intent_result, user_id=2, db=db)
-        print(response)
         return intent_result
