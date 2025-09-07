@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import httpx
 
 from app.core.config import config
+from .key_manager import api_key_manager
 
 logger = logging.getLogger(__name__)
 
@@ -67,26 +68,34 @@ class LLMService:
         model_name: Optional[str] = None,
         timeout: float = 30.0,
         max_retries: int = 3,
-        base_url: str = "https://openrouter.ai/api/v1"
+        base_url: str = "https://openrouter.ai/api/v1",
+        use_key_rotation: bool = True
     ):
         """
         Initialize the LLM service.
         
         Args:
-            api_key: OpenRouter API key (defaults to config value)
+            api_key: OpenRouter API key (if provided, disables key rotation)
             model_name: Default model to use (defaults to config value)
             timeout: Request timeout in seconds
             max_retries: Maximum number of retry attempts
             base_url: Base URL for OpenRouter API
+            use_key_rotation: Whether to use automatic key rotation (default: True)
         """
-        self.api_key = api_key or config.open_router_api_key
+        self.use_key_rotation = use_key_rotation and api_key is None
+        self.api_key = api_key  # Only used when key rotation is disabled
         self.default_model = model_name or config.open_router_model_name
         self.timeout = timeout
         self.max_retries = max_retries
         self.base_url = base_url.rstrip("/")
         
-        if not self.api_key:
-            logger.warning("OpenRouter API key not configured")
+        if not self.use_key_rotation and not self.api_key:
+            # Fall back to single key from config
+            self.api_key = config.open_router_api_key
+            if not self.api_key:
+                logger.warning("OpenRouter API key not configured and key rotation disabled")
+        elif self.use_key_rotation:
+            logger.info("LLM service initialized with automatic key rotation")
 
     async def complete(
         self, 
@@ -133,8 +142,17 @@ class LLMService:
         Raises:
             LLMServiceError: For various API and service errors
         """
-        if not self.api_key:
-            raise LLMServiceError("OpenRouter API key not configured")
+        # Get API key (either from rotation or fixed key)
+        if self.use_key_rotation:
+            key_result = api_key_manager.get_available_key()
+            if key_result is None:
+                raise LLMServiceError("All API keys have reached their daily limit")
+            current_api_key, key_index = key_result
+        else:
+            if not self.api_key:
+                raise LLMServiceError("OpenRouter API key not configured")
+            current_api_key = self.api_key
+            key_index = None
 
         model = request.model or self.default_model
         
@@ -159,14 +177,29 @@ class LLMService:
         if request.presence_penalty is not None:
             payload["presence_penalty"] = request.presence_penalty
 
-        return await self._make_request_with_retry(payload)
+        # Make the request and record usage if successful
+        try:
+            response = await self._make_request_with_retry(payload, current_api_key)
+            
+            # Record usage for key rotation
+            if self.use_key_rotation and key_index is not None:
+                api_key_manager.record_usage(key_index)
+                
+            return response
+        except Exception as e:
+            # Don't record usage if request failed
+            raise e
 
-    async def _make_request_with_retry(self, payload: Dict[str, Any]) -> LLMResponse:
+    async def _make_request_with_retry(self, payload: Dict[str, Any], api_key: str) -> LLMResponse:
         """
         Make API request with retry logic and error handling.
+        
+        Args:
+            payload: The request payload
+            api_key: The API key to use for this request
         """
         headers = {
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": "https://whisp.finance",  # Optional: for OpenRouter analytics
             "X-Title": "Whisp Finance Assistant"  # Optional: for OpenRouter analytics
@@ -417,15 +450,50 @@ class LLMService:
         
         return await self.chat(request)
 
-    def get_model_info(self) -> Dict[str, Union[str, bool]]:
+    def get_model_info(self) -> Dict[str, Union[str, bool, int]]:
         """Get information about the current model configuration."""
-        return {
+        info = {
             "default_model": self.default_model,
             "base_url": self.base_url,
             "timeout": str(self.timeout),
             "max_retries": str(self.max_retries),
-            "api_key_configured": bool(self.api_key)
+            "use_key_rotation": self.use_key_rotation
         }
+        
+        if self.use_key_rotation:
+            info.update({
+                "total_available_requests": api_key_manager.get_total_available_requests(),
+                "number_of_keys": len(api_key_manager._api_keys),
+                "daily_limit_per_key": api_key_manager.daily_limit
+            })
+        else:
+            info["api_key_configured"] = bool(self.api_key)
+            
+        return info
+
+    def get_key_usage_info(self) -> List[Dict[str, Union[str, int, bool]]]:
+        """
+        Get detailed usage information for all API keys.
+        Only works when key rotation is enabled.
+        
+        Returns:
+            List of dictionaries with key usage information
+        """
+        if not self.use_key_rotation:
+            return [{"error": "Key rotation is disabled"}]
+        
+        key_info = api_key_manager.get_all_key_info()
+        return [
+            {
+                "key_index": info.key_index,
+                "masked_key": info.key,
+                "usage_today": info.usage_today,
+                "daily_limit": info.daily_limit,
+                "remaining_requests": info.remaining_requests,
+                "is_available": info.is_available
+            }
+            for info in key_info
+        ]
 
 
 # Global instance for easy access

@@ -93,20 +93,21 @@ class MessageHandlerService:
 
         # Classify intent
         intent_classifier_agent = IntentClassifierAgent()
-        intent_result = await intent_classifier_agent.classify(text)
-        response = await route_intent(
-            intent_result=intent_result, user_id=user.id, db=db
-        )
+        classified_result = await intent_classifier_agent.classify(text)
+        _, intent = classified_result
 
-        if intent_result.intent == IntentType.UNKNOWN:
+        if intent == IntentType.UNKNOWN:
             return ProcessMessageResult(
                 messages=[random.choice(message_constants.unknown_responses)],
                 status="success",
             )
+        response = await route_intent(
+            classified_result=classified_result, user_id=user.id, db=db
+        )
 
         # Default fallback for free text
         return ProcessMessageResult(
-            messages=[f"Your intent is {intent_result.to_json()}"],
+            messages=[response],
             status="success",
         )
 

@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict, Literal
 
+from app.agents.intent_classifier.types import CLASSIFIED_RESULT
 
-from app.agents.intent_classifier.agent import IntentClassificationResult
 from app.core.db.engine import get_db
 from app.modules.expenses.service import ExpensesService, ExpenseNotFoundError
 from app.modules.expenses.dto import (
@@ -58,8 +58,6 @@ async def get_all_expenses(
 
 
 @router.post("/demo")
-async def demo_intent(
-    text: str, db: AsyncSession = Depends(get_db)
-) -> IntentClassificationResult:
+async def demo_intent(text: str, db: AsyncSession = Depends(get_db)) -> CLASSIFIED_RESULT:
     """API endpoint to demo intent classification"""
     return await expenses_service.demo_intent(db, text)

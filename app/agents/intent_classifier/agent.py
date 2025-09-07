@@ -1,11 +1,16 @@
 import json
 import logging
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, Tuple
 from dataclasses import dataclass
 from enum import Enum
 from app.communication.llm.service import llm_service, LLMServiceError
 import app.agents.intent_classifier.prompts as intent_classifier_prompts
-from app.agents.intent_classifier.types import IntentClassificationResult, IntentType
+from app.agents.intent_classifier.types import (
+    CLASSIFIED_RESULT,
+    DTO_UNION,
+    INTENT_TO_DTO,
+    IntentType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +30,7 @@ class IntentClassifierAgent:
             )
             return IntentType.UNKNOWN
 
-    async def classify(self, message: str) -> IntentClassificationResult:
+    async def classify(self, message: str) -> CLASSIFIED_RESULT:
         intent_prompt = intent_classifier_prompts.build_intent_prompt(message)
 
         try:
@@ -38,38 +43,22 @@ class IntentClassifierAgent:
             intent_parsed = json.loads(intent_content)
 
             intent = self._parse_intent(intent_parsed.get("intent", "unknown"))
+            
+            # Return early if intent is unknown - no need to calculate DTO
+            if intent == IntentType.UNKNOWN:
+                return None, IntentType.UNKNOWN
+            
             dto_prompt = intent_classifier_prompts.build_dto_prompt(message, intent, 2)
+            print("dto_prompt", dto_prompt)
             dto_response = await llm_service.complete(
                 prompt=dto_prompt, max_tokens=500, temperature=0
             )
-            dto_content = dto_response.content
-            dto_parsed = json.loads(dto_content)
-            # confidence = float(intent_parsed.get("confidence", 0.0))
+            print("dto_response", dto_response)
+            dto_parsed = json.loads(dto_response.content)
+            dto_instance = INTENT_TO_DTO[intent](**dto_parsed)
+            print("dto_instance", dto_instance)
 
-            return IntentClassificationResult(
-                intent=intent,
-                confidence=1.0,
-                raw=dto_parsed,
-            )
-
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON response: {e}")
-            return IntentClassificationResult(
-                intent=IntentType.UNKNOWN,
-                confidence=0.0,
-                raw=None,
-            )
-        except LLMServiceError as e:
-            logger.error(f"LLM service error during intent classification: {e}")
-            return IntentClassificationResult(
-                intent=IntentType.UNKNOWN,
-                confidence=0.0,
-                raw=None,
-            )
+            return dto_instance, intent
         except Exception as e:
             logger.error(f"Intent classification failed: {e}")
-            return IntentClassificationResult(
-                intent=IntentType.UNKNOWN,
-                confidence=0.0,
-                raw=None,
-            )
+            return None, IntentType.UNKNOWN

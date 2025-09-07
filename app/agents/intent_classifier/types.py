@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 import json
-from typing import Any, Dict, Optional, Protocol, Type, runtime_checkable
+from typing import Any, Dict, Optional, Protocol, Tuple, Type, Union, runtime_checkable
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,30 +22,14 @@ class IntentType(str, Enum):
     UNKNOWN = "unknown"
 
 
-INTENT_TO_DTO: Dict[IntentType, Type[BaseModel]] = {
+DTO_UNION = Union[CreateExpenseModel, GetAllExpensesModel]
+
+INTENT_TO_DTO: Dict[IntentType, Type[DTO_UNION]] = {
     IntentType.LOG_EXPENSE: CreateExpenseModel,
     IntentType.VIEW_EXPENSES: GetAllExpensesModel,
 }
 
-
-@dataclass
-class IntentClassificationResult:
-    """Result of intent classification."""
-
-    intent: IntentType
-    confidence: float
-    raw: Optional[str] = None
-
-    def to_json(self) -> str:
-        """Convert the result to a stringified JSON representation."""
-        return json.dumps(
-            {
-                "intent": self.intent.value,
-                "confidence": self.confidence,
-                "raw": self.raw,
-            },
-            ensure_ascii=False,
-        )
+CLASSIFIED_RESULT = Tuple[DTO_UNION | None, IntentType]
 
 
 @runtime_checkable
@@ -53,7 +37,7 @@ class IntentHandlerProtocol(Protocol):
     """Protocol defining the signature for intent handler methods."""
 
     async def __call__(
-        self, intent_result: IntentClassificationResult, user_id: int, db: AsyncSession
+        self, classified_result: CLASSIFIED_RESULT, user_id: int, db: AsyncSession
     ) -> Any:
         """Handle the intent and return a response."""
         ...

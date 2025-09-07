@@ -4,6 +4,7 @@ from typing import Dict, Any, Literal
 import dateparser
 
 from app.agents.intent_classifier.agent import IntentClassifierAgent
+from app.agents.intent_classifier.types import CLASSIFIED_RESULT
 from app.core.db import Expense, Category
 from app.modules.expenses.dto import (
     CreateExpenseModel,
@@ -30,7 +31,9 @@ class ExpensesService:
         self.logger = logger
         self.categories_service = CategoriesService()
 
-    async def get_expenses(self, db: AsyncSession, data: GetAllExpensesModel):
+    async def get_expenses(
+        self, db: AsyncSession, data: GetAllExpensesModel
+    ) -> list[ExpenseResponse] | str:
         # Parse and validate dates only once
         start_date = dateparser.parse(data.start_date) if data.start_date else None
         end_date = dateparser.parse(data.end_date) if data.end_date else None
@@ -85,13 +88,16 @@ class ExpensesService:
 
         expenses = await db.execute(query)
         expenses = expenses.scalars().all()
-        return [
-            ExpenseResponse(
-                **expense.__dict__,
-                category_name=expense.category.name if expense.category else None,
-            ).to_human_message()
-            for expense in expenses
-        ] if agg_func is None else expenses
+        if agg_func is None:
+            return [
+                ExpenseResponse(
+                    **expense.__dict__,
+                    category_name=expense.category.name if expense.category else None,
+                )
+                for expense in expenses
+            ]
+        else:
+            return ""
 
     async def create_expense(self, db: AsyncSession, data: CreateExpenseModel) -> None:
         """Create a new expense without returning any response"""
@@ -156,11 +162,14 @@ class ExpensesService:
         await db.commit()
         return None
 
-    async def demo_intent(self, db: AsyncSession, text: str):
+    async def demo_intent(self, db: AsyncSession, text: str) -> CLASSIFIED_RESULT:
         from app.agents.intent_classifier import route_intent
 
         """ """
         intent_classifier_agent = IntentClassifierAgent()
-        intent_result = await intent_classifier_agent.classify(text)
-        response = await route_intent(intent_result=intent_result, user_id=2, db=db)
-        return intent_result
+        classified_result = await intent_classifier_agent.classify(text)
+
+        # response = await route_intent(
+        #     classified_result=classified_result, user_id=2, db=db
+        # )
+        return classified_result
