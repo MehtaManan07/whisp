@@ -49,14 +49,11 @@ class IntentClassifierAgent:
                 return None, IntentType.UNKNOWN
             
             dto_prompt = intent_classifier_prompts.build_dto_prompt(message, intent, 2)
-            print("dto_prompt", dto_prompt)
             dto_response = await llm_service.complete(
                 prompt=dto_prompt, max_tokens=500, temperature=0
             )
-            print("dto_response", dto_response)
             dto_parsed = json.loads(dto_response.content)
             dto_instance = INTENT_TO_DTO[intent](**dto_parsed)
-            print("dto_instance", dto_instance)
 
             return dto_instance, intent
         except Exception as e:
