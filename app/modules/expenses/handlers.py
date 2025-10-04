@@ -1,8 +1,8 @@
 from typing import Any, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.agents.intent_classifier.base_handler import BaseHandlers
-from app.agents.intent_classifier.decorators import intent_handler
-from app.agents.intent_classifier.types import (
+from app.intelligence.intent.base_handler import BaseHandlers
+from app.intelligence.intent.decorators import intent_handler
+from app.intelligence.intent.types import (
     CLASSIFIED_RESULT,
     IntentType,
 )

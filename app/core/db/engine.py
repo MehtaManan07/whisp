@@ -23,7 +23,7 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
+async def get_db_util() -> AsyncGenerator[AsyncSession, None]:
     """
     Database dependency for FastAPI.
     Similar to NestJS's @InjectRepository() but as a dependency.

@@ -1,15 +1,17 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import Dict, Any, Literal
+from typing import Dict, Any
 import dateparser
 
-from app.agents.intent_classifier.agent import IntentClassifierAgent
-from app.agents.intent_classifier.types import CLASSIFIED_RESULT
+from app.intelligence.intent.classifier import IntentClassifier
+
+from app.intelligence.extraction.extractor import Extractor
+from app.intelligence.intent.types import CLASSIFIED_RESULT
 from app.core.db import Expense, Category
+from app.core.exceptions import ExpenseNotFoundError, ValidationError, DatabaseError
 from app.modules.expenses.dto import (
     CreateExpenseModel,
     DeleteExpenseModel,
-    ExpenseAggregationType,
     GetAllExpensesModel,
     ExpenseResponse,
 )
@@ -17,13 +19,9 @@ from app.modules.categories.service import CategoriesService
 import logging
 
 from app.utils.datetime import utc_now
-from sqlalchemy import func, extract
+from sqlalchemy import func
 
 logger = logging.getLogger(__name__)
-
-
-class ExpenseNotFoundError(Exception):
-    pass
 
 
 class ExpensesService:
@@ -71,14 +69,24 @@ class ExpensesService:
             query = query.where(Expense.amount >= data.start_amount)
         if data.end_amount is not None:
             query = query.where(Expense.amount <= data.end_amount)
-        if data.category_name:
+        if data.category_name and data.subcategory_name:
+            # When both category and subcategory are specified, find expenses where
+            # the category is the subcategory and its parent is the main category
+            query = query.where(
+                Expense.category.has(
+                    (Category.name == data.subcategory_name)
+                    & (Category.parent_id.isnot(None))
+                    & (Category.parent.has(Category.name == data.category_name))
+                )
+            )
+        elif data.category_name:
             query = query.where(
                 Expense.category.has(
                     (Category.name == data.category_name)
                     & (Category.parent_id.is_(None))
                 )
             )
-        if data.subcategory_name:
+        elif data.subcategory_name:
             query = query.where(
                 Expense.category.has(
                     (Category.name == data.subcategory_name)
@@ -103,29 +111,34 @@ class ExpensesService:
         """Create a new expense without returning any response"""
         self.logger.info(f"Creating new expense for user_id: {data.user_id}")
 
-        # Handle category and subcategory creation
-        category_data = await self.categories_service.find_or_create_with_parent(
-            db=db,
-            category_name=data.category_name or "",
-            subcategory_name=data.subcategory_name,
-        )
+        try:
+            # Handle category and subcategory creation
+            category_data = await self.categories_service.find_or_create_with_parent(
+                db=db,
+                category_name=data.category_name or "",
+                subcategory_name=data.subcategory_name,
+            )
 
-        new_expense = Expense(
-            user_id=data.user_id,
-            category_id=(
-                category_data["category"].id if category_data["category"] else None
-            ),
-            amount=data.amount,
-            note=data.note,
-            source_message_id=data.source_message_id,
-            vendor=data.vendor,
-            timestamp=data.timestamp,
-        )
+            new_expense = Expense(
+                user_id=data.user_id,
+                category_id=(
+                    category_data["category"].id if category_data["category"] else None
+                ),
+                amount=data.amount,
+                note=data.note,
+                source_message_id=data.source_message_id,
+                vendor=data.vendor,
+                timestamp=data.timestamp,
+            )
 
-        db.add(new_expense)
-        await db.commit()
+            db.add(new_expense)
+            await db.commit()
 
-        self.logger.info(f"Created expense for user_id: {data.user_id}")
+            self.logger.info(f"Created expense for user_id: {data.user_id}")
+        except Exception as e:
+            await db.rollback()
+            self.logger.error(f"Database error during expense creation: {str(e)}")
+            raise DatabaseError("create expense", str(e))
 
         return None
 
@@ -134,15 +147,23 @@ class ExpensesService:
         self.logger.info(f"Deleting expense with ID: {data.id}")
         id = data.id
 
-        expense = await db.scalar(
-            select(Expense).where(Expense.id == id, Expense.deleted_at.is_(None))
-        )
-        if expense is None or expense.deleted_at is not None:
-            self.logger.warning(f"Expense with ID {id} not found or already deleted")
-            raise ExpenseNotFoundError(f"Expense {id} not found")
+        try:
+            expense = await db.scalar(
+                select(Expense).where(Expense.id == id, Expense.deleted_at.is_(None))
+            )
+            if expense is None or expense.deleted_at is not None:
+                self.logger.warning(f"Expense with ID {id} not found or already deleted")
+                raise ExpenseNotFoundError(id)
 
-        expense.deleted_at = utc_now()
-        await db.commit()
+            expense.deleted_at = utc_now()
+            await db.commit()
+        except Exception as e:
+            await db.rollback()
+            if isinstance(e, ExpenseNotFoundError):
+                raise
+            self.logger.error(f"Database error during expense deletion: {str(e)}")
+            raise DatabaseError("delete expense", str(e))
+        
         return None
 
     async def update_expense(
@@ -151,25 +172,35 @@ class ExpensesService:
         """Update an expense's details (no return)"""
         self.logger.info(f"Updating expense with ID: {expense_id}")
 
-        expense = await db.get(Expense, expense_id)
-        if expense is None or expense.deleted_at is not None:
-            self.logger.warning(f"Expense with ID {expense_id} not found or deleted")
-            raise ExpenseNotFoundError(f"Expense {expense_id} not found")
+        try:
+            expense = await db.get(Expense, expense_id)
+            if expense is None or expense.deleted_at is not None:
+                self.logger.warning(f"Expense with ID {expense_id} not found or deleted")
+                raise ExpenseNotFoundError(expense_id)
 
-        for key, value in update_data.items():
-            setattr(expense, key, value)
+            for key, value in update_data.items():
+                setattr(expense, key, value)
 
-        await db.commit()
+            await db.commit()
+        except Exception as e:
+            await db.rollback()
+            if isinstance(e, ExpenseNotFoundError):
+                raise
+            self.logger.error(f"Database error during expense update: {str(e)}")
+            raise DatabaseError("update expense", str(e))
+        
         return None
 
-    async def demo_intent(self, db: AsyncSession, text: str) -> CLASSIFIED_RESULT:
-        from app.agents.intent_classifier import route_intent
-
-        """ """
-        intent_classifier_agent = IntentClassifierAgent()
-        classified_result = await intent_classifier_agent.classify(text)
-
-        # response = await route_intent(
-        #     classified_result=classified_result, user_id=2, db=db
-        # )
-        return classified_result
+    async def demo_intent(
+        self,
+        db: AsyncSession,
+        text: str,
+        intent_classifier: IntentClassifier,
+        extractor: Extractor,
+    ) -> CLASSIFIED_RESULT:
+        
+        """Demo intent classification"""
+        user_id = 2
+        intent = await intent_classifier.classify(text)
+        extract_dto = await extractor.extract(text, intent, user_id)
+        return (extract_dto, intent)

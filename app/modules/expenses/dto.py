@@ -4,6 +4,10 @@ from pydantic import BaseModel
 from typing import Optional, Literal
 
 
+class DeleteExpenseModel(BaseModel):
+    id: int
+
+
 class CreateExpenseModel(BaseModel):
     user_id: int
     category_name: Optional[str] = None
@@ -15,10 +19,6 @@ class CreateExpenseModel(BaseModel):
     timestamp: Optional[datetime] = None
 
 
-class DeleteExpenseModel(BaseModel):
-    id: int
-
-
 class GetAllExpensesModel(BaseModel):
     user_id: int
     category_name: Optional[str] = None
@@ -28,7 +28,9 @@ class GetAllExpensesModel(BaseModel):
     subcategory_name: Optional[str] = None
     start_amount: Optional[float] = None
     end_amount: Optional[float] = None
-    aggregation_type: Optional[Literal["sum", "count", "avg", "min", "max"]] = None # could have declared a type for this but swagger was not liking it
+    aggregation_type: Optional[Literal["sum", "count", "avg", "min", "max"]] = (
+        None  # could have declared a type for this but swagger was not liking it
+    )
 
 
 class GetExpensesByCategoryModel(BaseModel):
@@ -53,7 +55,7 @@ class ExpenseResponse(BaseModel):
     deleted_at: Optional[datetime]
 
     category_name: Optional[str]  # <-- new field, from related model
-    
+
     def to_human_message(self) -> str:
         """
         Returns a human-readable, natural language summary of the expense.
@@ -82,7 +84,9 @@ class ExpenseResponse(BaseModel):
 
         # Add deleted info if present
         if self.deleted_at:
-            parts.append(f"(deleted on {self.deleted_at.strftime('%B %d, %Y at %H:%M')})")
+            parts.append(
+                f"(deleted on {self.deleted_at.strftime('%B %d, %Y at %H:%M')})"
+            )
 
         # # Add IDs for reference if needed
         # parts.append(f"[Expense ID: {self.id}]")
