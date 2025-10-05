@@ -94,9 +94,10 @@ class ExpensesService:
                 )
             )
 
-        expenses = await db.execute(query)
-        expenses = expenses.scalars().all()
+        result = await db.execute(query)
+
         if agg_func is None:
+            expenses = result.scalars().all()
             return [
                 ExpenseResponse(
                     **expense.__dict__,
@@ -105,7 +106,9 @@ class ExpensesService:
                 for expense in expenses
             ]
         else:
-            return ""
+            # For aggregation functions, get the scalar result
+            agg_result = result.scalar()
+            return str(agg_result) if agg_result is not None else "0"
 
     async def create_expense(self, db: AsyncSession, data: CreateExpenseModel) -> None:
         """Create a new expense without returning any response"""
@@ -152,7 +155,9 @@ class ExpensesService:
                 select(Expense).where(Expense.id == id, Expense.deleted_at.is_(None))
             )
             if expense is None or expense.deleted_at is not None:
-                self.logger.warning(f"Expense with ID {id} not found or already deleted")
+                self.logger.warning(
+                    f"Expense with ID {id} not found or already deleted"
+                )
                 raise ExpenseNotFoundError(id)
 
             expense.deleted_at = utc_now()
@@ -163,7 +168,7 @@ class ExpensesService:
                 raise
             self.logger.error(f"Database error during expense deletion: {str(e)}")
             raise DatabaseError("delete expense", str(e))
-        
+
         return None
 
     async def update_expense(
@@ -175,7 +180,9 @@ class ExpensesService:
         try:
             expense = await db.get(Expense, expense_id)
             if expense is None or expense.deleted_at is not None:
-                self.logger.warning(f"Expense with ID {expense_id} not found or deleted")
+                self.logger.warning(
+                    f"Expense with ID {expense_id} not found or deleted"
+                )
                 raise ExpenseNotFoundError(expense_id)
 
             for key, value in update_data.items():
@@ -188,7 +195,7 @@ class ExpensesService:
                 raise
             self.logger.error(f"Database error during expense update: {str(e)}")
             raise DatabaseError("update expense", str(e))
-        
+
         return None
 
     async def demo_intent(
@@ -198,7 +205,6 @@ class ExpensesService:
         intent_classifier: IntentClassifier,
         extractor: Extractor,
     ) -> CLASSIFIED_RESULT:
-        
         """Demo intent classification"""
         user_id = 2
         intent = await intent_classifier.classify(text)

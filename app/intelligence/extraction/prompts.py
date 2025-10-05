@@ -67,7 +67,7 @@ You are an expert assistant that converts user messages into a JSON object that 
 - Do **NOT** include any explanation or text outside the JSON object.
 - Do **NOT** attempt to categorize expenses
 - All date-related fields must be parsed into **ISO 8601 datetime format** (e.g., `2025-08-24T00:00:00`). You might get a relative date, so you need to parse it and do the math yourself. Today's date and time is {current_time}.
-- Always include the provided `user_id` value.
+- **CRITICAL**: Always include the `user_id` field in your JSON response with the value: {user_id}
 
 ---
 
@@ -83,8 +83,8 @@ Fields:
 {message}
 
 ### Provided Values:
-- user_id: {user_id}
+- user_id: {user_id} (MUST be included in JSON)
 
 ### Return only this:
-A valid JSON object matching the `{request_dto.__name__}` DTO.
+A valid JSON object matching the `{request_dto.__name__}` DTO, including the user_id field.
 """

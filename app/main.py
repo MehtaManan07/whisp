@@ -1,6 +1,5 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.middleware.request_id_middleware import RequestIDMiddleware
 from app.core.error_handler import global_exception_handler
 
 from app.integrations.whatsapp.controller import router as whatsapp_router
@@ -18,8 +17,6 @@ app = FastAPI(
 app.add_exception_handler(Exception, global_exception_handler)
 
 # Middlewares
-app.add_middleware(RequestIDMiddleware)
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -35,5 +32,5 @@ app.include_router(users_router)
 
 
 @app.get("/demo")
-async def demo(request: Request) -> dict[str, str]:
-    return {"message": "Hello World", "request_id": str(request.state.request_id)}
+async def demo() -> dict[str, str]:
+    return {"message": "Hello World"}

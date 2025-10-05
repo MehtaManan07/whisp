@@ -24,6 +24,9 @@ class Extractor:
         )
         parsed_dto = json.loads(extraction_response.content)
 
+        # Ensure user_id is always included in the parsed data
+        parsed_dto["user_id"] = user_id
+
         # Create DTO instance from LLM extraction
         dto_instance = INTENT_TO_DTO[intent](**parsed_dto)
 
