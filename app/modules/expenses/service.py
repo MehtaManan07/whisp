@@ -61,7 +61,7 @@ class ExpensesService:
         )
 
         if data.vendor:
-            query = query.where(Expense.vendor == data.vendor)
+            query = query.where(Expense.vendor == data.vendor.lower())
         if start_date:
             query = query.where(Expense.timestamp >= start_date)
         if end_date:
@@ -95,6 +95,7 @@ class ExpensesService:
                 )
             )
 
+        print(f"\033[94mQuery:\033[0m {query}")
         result = await db.execute(query)
 
         if agg_func is None:
@@ -131,7 +132,7 @@ class ExpensesService:
                 amount=data.amount,
                 note=data.note,
                 source_message_id=data.source_message_id,
-                vendor=data.vendor,
+                vendor=data.vendor.lower() if data.vendor else None,
                 timestamp=data.timestamp,
             )
 
