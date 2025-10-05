@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import httpx
 
 from app.core.config import config
-from app.core.exceptions import LLMServiceError, LLMTimeoutError, LLMAPIError
+from app.core.exceptions import LLMServiceError
 from .key_manager import APIKeyManager
 
 logger = logging.getLogger(__name__)
@@ -229,14 +229,14 @@ class LLMService:
 
                         # Don't retry on client errors (4xx)
                         if 400 <= response.status_code < 500:
-                            raise LLMAPIError(f"Client error: {error_msg}")
+                            raise LLMServiceError(f"Client error: {error_msg}")
 
                         # Retry on server errors (5xx)
                         if attempt < self.max_retries:
                             await self._wait_before_retry(attempt)
                             continue
                         else:
-                            raise LLMAPIError(
+                            raise LLMServiceError(
                                 f"Server error after {self.max_retries} retries: {error_msg}"
                             )
 
@@ -263,7 +263,7 @@ class LLMService:
             except json.JSONDecodeError as e:
                 last_exception = e
                 logger.error(f"Invalid JSON response from OpenRouter: {str(e)}")
-                raise LLMAPIError(f"Invalid response format: {str(e)}")
+                raise LLMServiceError(f"Invalid response format: {str(e)}")
 
             except Exception as e:
                 last_exception = e
@@ -274,7 +274,7 @@ class LLMService:
 
         # If we get here, all retries failed
         if isinstance(last_exception, httpx.TimeoutException):
-            raise LLMTimeoutError(f"Request timed out after {self.max_retries} retries")
+            raise LLMServiceError(f"Request timed out after {self.max_retries} retries")
         else:
             raise LLMServiceError(
                 f"Request failed after {self.max_retries} retries: {str(last_exception)}"
@@ -286,7 +286,7 @@ class LLMService:
         """
         try:
             if "choices" not in data or not data["choices"]:
-                raise LLMAPIError("No choices in API response")
+                raise LLMServiceError("No choices in API response")
 
             choice = data["choices"][0]
             message = choice.get("message", {})
@@ -309,7 +309,7 @@ class LLMService:
 
         except (KeyError, IndexError) as e:
             logger.error(f"Unexpected response format from OpenRouter: {data}")
-            raise LLMAPIError(f"Unexpected response format: {str(e)}")
+            raise LLMServiceError(f"Unexpected response format: {str(e)}")
 
     def _extract_json_from_markdown(self, content: str) -> str:
         """

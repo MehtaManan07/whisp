@@ -4,8 +4,6 @@ from .service import (
     LLMRequest,
     LLMResponse,
     LLMServiceError,
-    LLMTimeoutError,
-    LLMAPIError,
 )
 
 __all__ = [
@@ -14,6 +12,4 @@ __all__ = [
     "LLMRequest",
     "LLMResponse",
     "LLMServiceError",
-    "LLMTimeoutError",
-    "LLMAPIError",
 ]
