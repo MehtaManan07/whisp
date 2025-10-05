@@ -18,15 +18,15 @@ from app.intelligence.intent.types import DTO_UNION
 
 
 # Type definitions for classification results
-ClassificationMethod = Literal["rule", "cache", "llm", "user_pattern"]
+ClassificationMethod = Literal["rule", "cache", "llm", "user_pattern", "non_transaction"]
 ConfidenceLevel = float  # 0.0 to 1.0
 
 
 class ClassificationResult(TypedDict):
     """Type-safe classification result structure."""
 
-    category: str
-    subcategory: str
+    category: Optional[str]
+    subcategory: Optional[str]
     confidence: ConfidenceLevel
     method: ClassificationMethod
 
@@ -34,8 +34,8 @@ class ClassificationResult(TypedDict):
 class CacheableClassification(TypedDict):
     """Type-safe structure for cached classification data."""
 
-    category: str
-    subcategory: str
+    category: Optional[str]
+    subcategory: Optional[str]
     confidence: ConfidenceLevel
 
 
@@ -74,11 +74,12 @@ class CategoryClassifier:
 
         Returns:
             ClassificationResult: Type-safe classification result containing:
-                - category: The main expense category
-                - subcategory: The specific subcategory
+                - category: The main expense category (null for non-transactional queries)
+                - subcategory: The specific subcategory (null for non-transactional queries)
                 - confidence: Confidence level (0.0 to 1.0)
-                - method: Classification method used ("rule", "cache", "llm", "user_pattern")
+                - method: Classification method used ("rule", "cache", "llm", "user_pattern", "non_transaction")
         """
+
 
         # Extract fields from DTO
         merchant = getattr(dto_instance, "vendor", None)
@@ -158,6 +159,7 @@ class CategoryClassifier:
             text = original_message
 
         return self._normalize_text(text)
+
 
     def _normalize_text(self, text: str) -> str:
         """Normalize text for classification"""
@@ -246,13 +248,20 @@ class CategoryClassifier:
             response = await self.llm.complete(
                 prompt=prompt,
                 temperature=0,
-                max_tokens=100,
                 call_stack="categorization",
             )
 
             result = json.loads(response.content)
 
-            # Validate category exists
+            # Handle query messages (category and subcategory are null)
+            if result.get("category") is None and result.get("subcategory") is None:
+                return {
+                    "category": None,
+                    "subcategory": None,
+                    "confidence": result.get("confidence", 1.0),
+                }
+
+            # Validate category exists for transactions
             if result["category"] not in CATEGORIES:
                 result["category"] = "Other"
                 result["subcategory"] = "Miscellaneous"

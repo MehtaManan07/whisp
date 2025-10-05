@@ -8,7 +8,7 @@ from app.intelligence.intent.classifier import IntentClassifier
 from app.intelligence.extraction.extractor import Extractor
 from app.intelligence.intent.types import CLASSIFIED_RESULT
 from app.core.db import Expense, Category
-from app.core.exceptions import ExpenseNotFoundError, ValidationError, DatabaseError
+from app.core.exceptions import ExpenseNotFoundError, DatabaseError
 from app.modules.expenses.dto import (
     CreateExpenseModel,
     DeleteExpenseModel,
@@ -32,6 +32,7 @@ class ExpensesService:
     async def get_expenses(
         self, db: AsyncSession, data: GetAllExpensesModel
     ) -> list[ExpenseResponse] | str:
+        print(f"\033[94mExpensesService.get_expenses called\033[0m", data)
         # Parse and validate dates only once
         start_date = dateparser.parse(data.start_date) if data.start_date else None
         end_date = dateparser.parse(data.end_date) if data.end_date else None
@@ -141,7 +142,7 @@ class ExpensesService:
         except Exception as e:
             await db.rollback()
             self.logger.error(f"Database error during expense creation: {str(e)}")
-            raise DatabaseError("create expense", str(e))
+            raise DatabaseError(f"create expense: {str(e)}")
 
         return None
 
@@ -167,7 +168,7 @@ class ExpensesService:
             if isinstance(e, ExpenseNotFoundError):
                 raise
             self.logger.error(f"Database error during expense deletion: {str(e)}")
-            raise DatabaseError("delete expense", str(e))
+            raise DatabaseError(f"delete expense: {str(e)}")
 
         return None
 
@@ -194,7 +195,7 @@ class ExpensesService:
             if isinstance(e, ExpenseNotFoundError):
                 raise
             self.logger.error(f"Database error during expense update: {str(e)}")
-            raise DatabaseError("update expense", str(e))
+            raise DatabaseError(f"update expense: {str(e)}")
 
         return None
 

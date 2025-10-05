@@ -18,7 +18,6 @@ class Extractor:
         prompt = build_dto_prompt(message, intent, user_id)
         extraction_response = await self.llm_service.complete(
             prompt=prompt,
-            max_tokens=500,
             temperature=0,
             call_stack="extraction",
         )
@@ -29,6 +28,7 @@ class Extractor:
 
         # Create DTO instance from LLM extraction
         dto_instance = INTENT_TO_DTO[intent](**parsed_dto)
+        print(f"\033[94mExtracted DTO:\033[0m {dto_instance}")
 
         # Always run categorization for expense DTOs since LLM no longer handles categories
         if hasattr(dto_instance, "category_name") or hasattr(
@@ -38,7 +38,7 @@ class Extractor:
                 original_message=message, dto_instance=dto_instance, user_id=user_id
             )
 
-            # Set the classified categories
+            # Set the classified categories (can be None for non-transactional queries)
             if hasattr(dto_instance, "category_name"):
                 dto_instance.category_name = classification_result["category"]
             if hasattr(dto_instance, "subcategory_name"):

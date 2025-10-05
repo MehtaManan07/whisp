@@ -82,7 +82,6 @@ class IntentClassifier:
             # Make LLM request
             response = await self.llm.complete(
                 prompt=prompt,
-                max_tokens=50,
                 temperature=0.1,
                 call_stack="intent_classification",
             )
