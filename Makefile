@@ -5,7 +5,8 @@ help:
 	@echo "  make run             - Run the FastAPI server"
 	@echo "  make migrate         - Apply Alembic migrations"
 	@echo "  make makemigration msg='message' - Create migration"
-	@echo "  make test            - Run tests"
+	@echo "  make expose          - Expose the FastAPI server to the internet"
+	@echo "  make down            - Stop the FastAPI server"
 
 
 # Configs

@@ -1,6 +1,7 @@
 import json
 import logging
 import asyncio
+import re
 from typing import Dict, Any, Optional, List, Union
 from datetime import datetime
 from dataclasses import dataclass
@@ -61,7 +62,7 @@ class LLMService:
         api_key: Optional[str] = None,
         model_name: Optional[str] = None,
         timeout: float = 30.0,
-        max_retries: int = 3,
+        max_retries: int = 0,  # no retries
         base_url: str = "https://openrouter.ai/api/v1",
         use_key_rotation: bool = True,
     ):
@@ -292,6 +293,9 @@ class LLMService:
             message = choice.get("message", {})
             content = message.get("content", "").strip()
 
+            # Remove special tokens that some models emit
+            content = self._clean_special_tokens(content)
+
             if not content:
                 logger.warning("Empty content in LLM response")
                 content = "I apologize, but I couldn't generate a proper response. Please try again."
@@ -310,6 +314,41 @@ class LLMService:
         except (KeyError, IndexError) as e:
             logger.error(f"Unexpected response format from OpenRouter: {data}")
             raise LLMServiceError(f"Unexpected response format: {str(e)}")
+
+    def _clean_special_tokens(self, content: str) -> str:
+        """
+        Remove special control tokens that some models emit.
+        
+        Args:
+            content: Raw content that may contain special tokens
+            
+        Returns:
+            Cleaned content with special tokens removed
+        """
+        # List of special tokens to remove
+        special_tokens = [
+            r'<｜begin▁of▁sentence｜>',
+            r'<\|begin_of_sentence\|>',
+            r'<｜end▁of▁sentence｜>',
+            r'<\|end_of_sentence\|>',
+            r'<｜begin▁of▁text｜>',
+            r'<\|begin_of_text\|>',
+            r'<｜end▁of▁text｜>',
+            r'<\|end_of_text\|>',
+            r'<s>',
+            r'</s>',
+            r'<\|im_start\|>',
+            r'<\|im_end\|>',
+        ]
+        
+        # Remove all special tokens
+        for token in special_tokens:
+            content = re.sub(token, '', content)
+        
+        # Clean up any extra whitespace that might have been left
+        content = content.strip()
+        
+        return content
 
     def _extract_json_from_markdown(self, content: str) -> str:
         """
