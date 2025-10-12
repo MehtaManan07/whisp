@@ -9,6 +9,7 @@ from app.core.db.base import BaseModel
 
 if TYPE_CHECKING:
     from app.core.db import Expense
+    from app.modules.reminders.models import Reminder
 
 
 class User(BaseModel):
@@ -45,6 +46,13 @@ class User(BaseModel):
         "Expense",
         back_populates="user",
         lazy="selectin",  # Efficient loading strategy
+        cascade="all, delete-orphan",
+    )
+
+    reminders: Mapped[List["Reminder"]] = relationship(
+        "Reminder",
+        back_populates="user",
+        lazy="selectin",
         cascade="all, delete-orphan",
     )
 

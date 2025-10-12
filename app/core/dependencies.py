@@ -19,6 +19,7 @@ from app.integrations.llm.service import LLMService
 from app.integrations.whatsapp.service import WhatsAppService
 from app.modules.expenses.service import ExpensesService
 from app.modules.users.service import UsersService
+from app.modules.reminders.service import ReminderService
 
 # from app.modules.budgets.service import BudgetsService
 from app.modules.categories.service import CategoriesService
@@ -115,6 +116,12 @@ def get_category_service():
     return CategoriesService()
 
 
+@lru_cache()
+def get_reminder_service():
+    """Reminder service - SINGLETON"""
+    return ReminderService()
+
+
 # ============================================================================
 # INTELLIGENCE LAYER (Singletons)
 # ============================================================================
@@ -177,6 +184,7 @@ WhatsAppServiceDep = Annotated[WhatsAppService, Depends(get_whatsapp_service)]
 ExpenseServiceDep = Annotated[ExpensesService, Depends(get_expense_service)]
 UserServiceDep = Annotated[UsersService, Depends(get_user_service)]
 CategoryServiceDep = Annotated[CategoriesService, Depends(get_category_service)]
+ReminderServiceDep = Annotated[ReminderService, Depends(get_reminder_service)]
 ExtractorDep = Annotated[Extractor, Depends(get_extractor)]
 CategoryClassifierDep = Annotated[CategoryClassifier, Depends(get_category_classifier)]
 OrchestratorDep = Annotated[MessageOrchestrator, Depends(get_orchestrator)]

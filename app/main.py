@@ -6,6 +6,7 @@ from app.integrations.whatsapp.controller import router as whatsapp_router
 from app.modules.expenses.controller import router as expenses_router
 from app.modules.categories.controller import router as categories_router
 from app.modules.users.controller import router as users_router
+from app.modules.reminders.controller import router as reminders_router
 
 app = FastAPI(
     title="Whisp API",
@@ -29,6 +30,7 @@ app.include_router(whatsapp_router)
 app.include_router(expenses_router)
 app.include_router(categories_router)
 app.include_router(users_router)
+app.include_router(reminders_router)
 
 
 @app.get("/demo")
