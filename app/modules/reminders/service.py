@@ -8,7 +8,7 @@ from dateutil.relativedelta import relativedelta
 
 from app.modules.reminders.models import Reminder
 from app.modules.reminders.types import ReminderType, RecurrenceType, RecurrenceConfig
-from app.modules.reminders.dto import CreateReminderDTO, UpdateReminderDTO
+from app.modules.reminders.dto import CreateReminderDTO, UpdateReminderDTO, ListRemindersDTO
 from app.core.exceptions import NotFoundError, ValidationError
 from app.utils.datetime import utc_now
 
@@ -76,18 +76,16 @@ class ReminderService:
     async def list_reminders(
         self,
         db: AsyncSession,
-        user_id: int,
-        reminder_type: Optional[ReminderType] = None,
-        is_active: Optional[bool] = True,
+        data: ListRemindersDTO,
     ) -> List[Reminder]:
         """List user's reminders with optional filters."""
-        conditions = [Reminder.user_id == user_id, Reminder.deleted_at.is_(None)]
+        conditions = [Reminder.user_id == data.user_id, Reminder.deleted_at.is_(None)]
 
-        if reminder_type:
-            conditions.append(Reminder.reminder_type == reminder_type)
+        if data.reminder_type:
+            conditions.append(Reminder.reminder_type == data.reminder_type)
 
-        if is_active is not None:
-            conditions.append(Reminder.is_active == is_active)
+        if data.is_active is not None:
+            conditions.append(Reminder.is_active == data.is_active)
 
         result = await db.execute(
             select(Reminder)

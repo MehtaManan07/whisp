@@ -68,7 +68,7 @@ class WhatsAppService:
                 age = now - message_time
 
                 if age > timedelta(
-                    minutes=0.5
+                    minutes=0.25
                 ):  # Ignore messages older than 0.5 minute
                     print(f"Ignoring old message from {from_number} (age: {age})")
                     continue

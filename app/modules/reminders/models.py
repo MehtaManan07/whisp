@@ -62,3 +62,51 @@ class Reminder(BaseModel):
     def is_recurring(self) -> bool:
         """Check if reminder has recurring schedule."""
         return self.recurrence_type != "once"
+
+    def to_human_message(self) -> str:
+        """
+        Returns a human-readable, natural language summary of the reminder.
+        """
+        parts = []
+
+        # Start with the title
+        main = f"📌 {self.title}"
+        parts.append(main)
+
+        # Add reminder type icon
+        type_icons = {
+            "bill": "💰",
+            "expense_log": "📝",
+            "custom": "⏰"
+        }
+        icon = type_icons.get(self.reminder_type, "⏰")
+
+        # Add amount if present (for bills)
+        if self.amount:
+            parts.append(f"{icon} Amount: ₹{self.amount:,.2f}")
+
+        # Add description if present
+        if self.description:
+            parts.append(f"📋 {self.description}")
+
+        # Add next trigger time
+        from app.utils.datetime import format_relative_time
+        trigger_str = format_relative_time(self.next_trigger_at)
+        parts.append(f"⏰ Next: {trigger_str}")
+
+        # Add recurrence info
+        if self.is_recurring:
+            recurrence_display = {
+                "daily": "Daily",
+                "weekly": "Weekly",
+                "monthly": "Monthly",
+                "yearly": "Yearly"
+            }
+            recurrence = recurrence_display.get(self.recurrence_type, self.recurrence_type)
+            parts.append(f"🔄 {recurrence}")
+
+        # Add status
+        status = "✅ Active" if self.is_active else "⏸️ Inactive"
+        parts.append(status)
+
+        return "\n".join(parts)

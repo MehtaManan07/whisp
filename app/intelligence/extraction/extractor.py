@@ -40,8 +40,8 @@ class Extractor:
 
             # Set the classified categories (can be None for non-transactional queries)
             if hasattr(dto_instance, "category_name"):
-                dto_instance.category_name = classification_result["category"]
+                dto_instance.category_name = classification_result["category"]  # type: ignore
             if hasattr(dto_instance, "subcategory_name"):
-                dto_instance.subcategory_name = classification_result["subcategory"]
+                dto_instance.subcategory_name = classification_result["subcategory"]  # type: ignore
 
         return dto_instance

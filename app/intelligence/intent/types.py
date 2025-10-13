@@ -1,11 +1,9 @@
-from dataclasses import dataclass
 from enum import Enum
-import json
-from typing import Any, Dict, Optional, Protocol, Tuple, Type, Union, runtime_checkable
+from typing import Dict, Tuple, Type, Union
 from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.expenses.dto import CreateExpenseModel, GetAllExpensesModel
+from app.modules.reminders.dto import CreateReminderDTO, ListRemindersDTO
 
 
 class IntentType(str, Enum):
@@ -22,11 +20,15 @@ class IntentType(str, Enum):
     UNKNOWN = "unknown"
 
 
-DTO_UNION = Union[CreateExpenseModel, GetAllExpensesModel]
+DTO_UNION = Union[
+    CreateExpenseModel, GetAllExpensesModel, CreateReminderDTO, ListRemindersDTO
+]
 
 INTENT_TO_DTO: Dict[IntentType, Type[DTO_UNION]] = {
     IntentType.LOG_EXPENSE: CreateExpenseModel,
     IntentType.VIEW_EXPENSES: GetAllExpensesModel,
+    IntentType.SET_REMINDER: CreateReminderDTO,
+    IntentType.VIEW_REMINDERS: ListRemindersDTO,
 }
 
 CLASSIFIED_RESULT = Tuple[DTO_UNION | None, IntentType]

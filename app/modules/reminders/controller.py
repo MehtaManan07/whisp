@@ -7,6 +7,7 @@ from app.core.exceptions import ValidationError
 from app.modules.reminders.dto import (
     CreateReminderDTO,
     UpdateReminderDTO,
+    ListRemindersDTO,
     ReminderResponseDTO,
     ReminderListResponseDTO,
     SnoozeReminderDTO,
@@ -58,7 +59,12 @@ async def list_reminders(
     if user_id <= 0:
         raise ValidationError("User ID must be a positive integer")
     
-    reminders = await reminder_service.list_reminders(db, user_id, reminder_type, is_active)
+    list_dto = ListRemindersDTO(
+        user_id=user_id,
+        reminder_type=reminder_type,
+        is_active=is_active
+    )
+    reminders = await reminder_service.list_reminders(db, list_dto)
     reminder_dtos = [ReminderResponseDTO.model_validate(r) for r in reminders]
     active_count = sum(1 for r in reminders if r.is_active)
     

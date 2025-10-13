@@ -6,8 +6,12 @@ INTENT_PATTERNS = {
     # More flexible pattern that handles both orders
     r"(\b(spent|paid|bought|cost|purchase|expense|bill)\b.*\d+|\d+.*\b(spent|paid|bought|cost|purchase|expense|bill)\b)": "LOG_EXPENSE",
     r"\b(spent|paid|bought|cost|purchase|expense|bill)\b.*\d+": "LOG_EXPENSE",
+    # Reminders - check BEFORE general queries (more specific patterns first)
+    r"\b(show|list|view|display|get|check|see)\b.*(my\s+)?reminders?\b": "VIEW_REMINDERS",
+    r"\breminders?\b.*(show|list|view|display)": "VIEW_REMINDERS",
+    r"\bremind\s+me\b": "SET_REMINDER",
     # Queries - second most common (20-30%)
-    r"\b(how much|total|show|list|view|display)\b": "VIEW_EXPENSES",
+    r"\b(how much|total|show|list|view|display)\b.*(expense|spending|spent)": "VIEW_EXPENSES",
     r"\b(spending|spent).*\b(this|last|current)\s+(week|month|year)": "VIEW_EXPENSES",
     # Budget management
     r"\b(set|create|add|make)\s+(a\s+)?budget\b": "SET_BUDGET",
@@ -15,8 +19,6 @@ INTENT_PATTERNS = {
     # Goals
     r"\b(set|create)\s+(a\s+)?goal\b": "SET_GOAL",
     r"\b(view|show|check)\s+(my\s+)?goals?\b": "VIEW_GOALS",
-    # Reminders
-    r"\bremind\s+me\b": "SET_REMINDER",
     # Commands (instant classification)
     r"^/help": "HELP",
     r"^/report": "REPORT",
@@ -40,6 +42,7 @@ Examples:
 "Show me my expenses for last week." → {{"intent": "view_expenses"}}
 "Set my food budget to 10000." → {{"intent": "set_budget"}}
 "Remind me to pay rent on 1st." → {{"intent": "set_reminder"}}
+"Show me all my reminders." → {{"intent": "view_reminders"}}
 
 User message:
 {message}

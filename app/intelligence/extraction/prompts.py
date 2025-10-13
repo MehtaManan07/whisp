@@ -7,8 +7,19 @@ def build_dto_prompt(message: str, intent: IntentType, user_id: int) -> str:
     schema = request_dto.model_json_schema()
     fields = schema.get("properties", {})
     required_fields = set(schema.get("required", []))
+    defs = schema.get("$defs", {})
 
     def summarize_field(info):
+        # Handle $ref to resolve enum definitions
+        if "$ref" in info:
+            ref_path = info["$ref"].split("/")[-1]  # Get the last part (e.g., "ReminderType")
+            if ref_path in defs:
+                ref_info = defs[ref_path]
+                if "enum" in ref_info:
+                    return f"constrained values: {ref_info['enum']}"
+                # Recursively summarize the referenced definition
+                return summarize_field(ref_info)
+        
         # Handle constrained values (like enum)
         constrained = info.get("enum") or []
         if isinstance(constrained, (str, int)):
@@ -22,7 +33,12 @@ def build_dto_prompt(message: str, intent: IntentType, user_id: int) -> str:
                 types = []
                 values = []
                 for option in info[union_key]:
-                    if "enum" in option:
+                    # Handle $ref in anyOf/oneOf
+                    if "$ref" in option:
+                        ref_path = option["$ref"].split("/")[-1]
+                        if ref_path in defs and "enum" in defs[ref_path]:
+                            values += defs[ref_path]["enum"]
+                    elif "enum" in option:
                         values += option["enum"]
                     elif "type" in option:
                         types.append(option["type"])
@@ -54,6 +70,15 @@ def build_dto_prompt(message: str, intent: IntentType, user_id: int) -> str:
 
     dto_description = "\n".join(dto_lines)
     current_time = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
+    
+    # Include examples if available
+    examples = schema.get("examples", [])
+    examples_text = ""
+    if examples:
+        import json
+        examples_text = "\n\n### Examples:\n" + "\n".join(
+            f"```json\n{json.dumps(ex, indent=2)}\n```" for ex in examples[:3]
+        )
 
     return f"""
 You are an expert assistant that converts user messages into a JSON object that matches a predefined data structure (DTO).
@@ -68,6 +93,7 @@ You are an expert assistant that converts user messages into a JSON object that 
 - Do **NOT** attempt to categorize expenses
 - All date-related fields must be parsed into **ISO 8601 datetime format** (e.g., `2025-08-24T00:00:00`). You might get a relative date, so you need to parse it and do the math yourself. Today's date and time is {current_time}.
 - **CRITICAL**: Always include the `user_id` field in your JSON response with the value: {user_id}
+- **IMPORTANT**: If recurrence_type is NOT "once", then recurrence_config MUST be provided with at least a "time" field (HH:MM format).
 
 ---
 
@@ -84,6 +110,7 @@ Fields:
 
 ### Provided Values:
 - user_id: {user_id} (MUST be included in JSON)
+{examples_text}
 
 ### Return only this:
 A valid JSON object matching the `{request_dto.__name__}` DTO, including the user_id field.

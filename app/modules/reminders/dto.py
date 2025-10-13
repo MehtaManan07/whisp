@@ -161,6 +161,28 @@ class UpdateReminderDTO(BaseModel):
         }
 
 
+class ListRemindersDTO(BaseModel):
+    """DTO for listing reminders with optional filters."""
+
+    user_id: int
+    reminder_type: Optional[ReminderType] = Field(
+        None, description="Filter by reminder type"
+    )
+    is_active: Optional[bool] = Field(True, description="Filter by active status")
+
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {"user_id": 1, "is_active": True},
+                {"user_id": 1, "reminder_type": "bill", "is_active": True},
+                {
+                    "user_id": 1,
+                    "is_active": None,
+                },  # Get all reminders regardless of status
+            ]
+        }
+
+
 class ReminderResponseDTO(BaseModel):
     """DTO for reminder responses."""
 

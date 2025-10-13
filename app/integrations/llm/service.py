@@ -1,9 +1,7 @@
 import json
 import logging
-import asyncio
 import re
 from typing import Dict, Any, Optional, List, Union
-from datetime import datetime
 from dataclasses import dataclass
 import httpx
 
@@ -47,12 +45,9 @@ class LLMResponse:
     raw_response: Optional[Dict[str, Any]] = None
 
 
-# Exception classes moved to app.core.exceptions
-
-
 class LLMService:
     """
-    Service class for making LLM calls via OpenRouter API.
+    Service class for making LLM calls via OpenRouter and Groq APIs.
     Provides a centralized interface for all agents to interact with language models.
     """
 
@@ -62,7 +57,6 @@ class LLMService:
         api_key: Optional[str] = None,
         model_name: Optional[str] = None,
         timeout: float = 30.0,
-        max_retries: int = 0,  # no retries
         base_url: str = "https://openrouter.ai/api/v1",
         use_key_rotation: bool = True,
     ):
@@ -74,7 +68,6 @@ class LLMService:
             api_key: OpenRouter API key (if provided, disables key rotation)
             model_name: Default model to use (defaults to config value)
             timeout: Request timeout in seconds
-            max_retries: Maximum number of retry attempts
             base_url: Base URL for OpenRouter API
             use_key_rotation: Whether to use automatic key rotation (default: True)
         """
@@ -82,19 +75,15 @@ class LLMService:
         self.use_key_rotation = (
             use_key_rotation and api_key is None and api_key_manager is not None
         )
-        self.api_key = api_key  # Only used when key rotation is disabled
+        self.api_key = api_key
         self.default_model = model_name or config.open_router_model_name
         self.timeout = timeout
-        self.max_retries = max_retries
         self.base_url = base_url.rstrip("/")
 
         if not self.use_key_rotation and not self.api_key:
-            # Fall back to single key from config
             self.api_key = config.open_router_api_key
             if not self.api_key:
-                logger.warning(
-                    "OpenRouter API key not configured and key rotation disabled"
-                )
+                logger.warning("OpenRouter API key not configured and key rotation disabled")
         elif self.use_key_rotation:
             logger.info("LLM service initialized with automatic key rotation")
 
@@ -119,10 +108,7 @@ class LLMService:
         Returns:
             LLMResponse object with the completion
         """
-        print(
-            f"\033[94mLLMService.complete called\033[0m",
-            kwargs,
-        )
+        print(f"\033[94mLLMService.complete called\033[0m", kwargs)
 
         messages = [LLMMessage(role="user", content=prompt)]
         request = LLMRequest(
@@ -132,12 +118,11 @@ class LLMService:
             temperature=temperature,
             **kwargs,
         )
-        response = await self.chat(request)
-        return response
+        return await self.chat(request)
 
     async def chat(self, request: LLMRequest) -> LLMResponse:
         """
-        Main chat interface supporting conversation history.
+        Main chat interface supporting conversation history using OpenRouter.
 
         Args:
             request: LLMRequest object with messages and parameters
@@ -160,16 +145,97 @@ class LLMService:
             current_api_key = self.api_key
             key_index = None
 
-        model = request.model or self.default_model
+        # Build payload
+        payload = self._build_payload(request)
 
-        # Build the API payload
+        # Make the request
+        try:
+            response = await self._make_openrouter_request(payload, current_api_key)
+
+            # Record usage for key rotation
+            if self.use_key_rotation and key_index is not None:
+                self.api_key_manager.record_usage(key_index)
+
+            return response
+        except Exception:
+            raise
+
+    async def complete_with_groq(
+        self,
+        prompt: str,
+        model: str = "llama-3.3-70b-versatile",
+        max_tokens: int = 1000,
+        temperature: float = 0.7,
+        **kwargs,
+    ) -> LLMResponse:
+        """
+        Use Groq API for fast inference with Llama models.
+        
+        Groq provides extremely fast inference speeds (up to 750 tokens/sec).
+        
+        Args:
+            prompt: The prompt to send to the LLM
+            model: Groq model to use (default: llama-3.3-70b-versatile)
+                   Other options: llama-3.1-8b-instant, mixtral-8x7b-32768, etc.
+            max_tokens: Maximum tokens to generate
+            temperature: Temperature for generation
+            **kwargs: Additional parameters for the API
+            
+        Returns:
+            LLMResponse object with the completion
+            
+        Raises:
+            LLMServiceError: If Groq API key not configured or request fails
+        """
+        print(f"\033[95mLLMService.complete_with_groq called\033[0m", kwargs)
+        
+        messages = [LLMMessage(role="user", content=prompt)]
+        request = LLMRequest(
+            messages=messages,
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            **kwargs,
+        )
+        
+        return await self.chat_with_groq(request)
+
+    async def chat_with_groq(self, request: LLMRequest) -> LLMResponse:
+        """
+        Chat interface using Groq API.
+        
+        Args:
+            request: LLMRequest object with messages and parameters
+            
+        Returns:
+            LLMResponse object with the response
+            
+        Raises:
+            LLMServiceError: If Groq API key not configured or request fails
+        """
+        groq_api_key = config.groq_api_key
+        if not groq_api_key:
+            raise LLMServiceError("Groq API key not configured. Set GROQ_API_KEY in .env")
+        
+        # Build payload
+        payload = self._build_payload(request, default_model="llama-3.3-70b-versatile")
+        
+        # Make the request
+        return await self._make_groq_request(payload, groq_api_key)
+
+    def _build_payload(
+        self, request: LLMRequest, default_model: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Build API payload from request."""
+        model = request.model or default_model or self.default_model
+        
         payload = {
             "model": model,
             "messages": [
                 {"role": msg.role, "content": msg.content} for msg in request.messages
             ],
         }
-
+        
         # Add optional parameters
         if request.max_tokens is not None:
             payload["max_tokens"] = request.max_tokens
@@ -181,110 +247,89 @@ class LLMService:
             payload["frequency_penalty"] = request.frequency_penalty
         if request.presence_penalty is not None:
             payload["presence_penalty"] = request.presence_penalty
+        
+        return payload
 
-        # Make the request and record usage if successful
-        try:
-            response = await self._make_request_with_retry(payload, current_api_key)
-
-            # Record usage for key rotation
-            if self.use_key_rotation and key_index is not None:
-                self.api_key_manager.record_usage(key_index)
-
-            return response
-        except Exception as e:
-            # Don't record usage if request failed
-            raise e
-
-    async def _make_request_with_retry(
+    async def _make_openrouter_request(
         self, payload: Dict[str, Any], api_key: str
     ) -> LLMResponse:
-        """
-        Make API request with retry logic and error handling.
-
-        Args:
-            payload: The request payload
-            api_key: The API key to use for this request
-        """
+        """Make API request to OpenRouter."""
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://whisp.finance",  # Optional: for OpenRouter analytics
-            "X-Title": "Whisp Finance Assistant",  # Optional: for OpenRouter analytics
+            "HTTP-Referer": "https://whisp.finance",
+            "X-Title": "Whisp Finance Assistant",
         }
 
-        last_exception = None
-
-        for attempt in range(self.max_retries + 1):
-            try:
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
-                    response = await client.post(
-                        f"{self.base_url}/chat/completions",
-                        headers=headers,
-                        json=payload,
-                    )
-
-                    # Handle HTTP errors
-                    if response.status_code != 200:
-                        error_msg = f"HTTP {response.status_code}: {response.text}"
-                        logger.error(f"OpenRouter API error: {error_msg}")
-
-                        # Don't retry on client errors (4xx)
-                        if 400 <= response.status_code < 500:
-                            raise LLMServiceError(f"Client error: {error_msg}")
-
-                        # Retry on server errors (5xx)
-                        if attempt < self.max_retries:
-                            await self._wait_before_retry(attempt)
-                            continue
-                        else:
-                            raise LLMServiceError(
-                                f"Server error after {self.max_retries} retries: {error_msg}"
-                            )
-
-                    # Parse response
-                    data = response.json()
-                    return self._parse_response(data)
-
-            except httpx.TimeoutException as e:
-                last_exception = e
-                logger.warning(
-                    f"LLM request timeout (attempt {attempt + 1}/{self.max_retries + 1})"
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=headers,
+                    json=payload,
                 )
-                if attempt < self.max_retries:
-                    await self._wait_before_retry(attempt)
-                    continue
 
-            except httpx.RequestError as e:
-                last_exception = e
-                logger.error(f"Network error during LLM request: {str(e)}")
-                if attempt < self.max_retries:
-                    await self._wait_before_retry(attempt)
-                    continue
+                if response.status_code != 200:
+                    error_msg = f"HTTP {response.status_code}: {response.text}"
+                    logger.error(f"OpenRouter API error: {error_msg}")
+                    raise LLMServiceError(f"OpenRouter API error: {error_msg}")
 
-            except json.JSONDecodeError as e:
-                last_exception = e
-                logger.error(f"Invalid JSON response from OpenRouter: {str(e)}")
-                raise LLMServiceError(f"Invalid response format: {str(e)}")
+                data = response.json()
+                return self._parse_response(data)
 
-            except Exception as e:
-                last_exception = e
-                logger.error(f"Unexpected error during LLM request: {str(e)}")
-                if attempt < self.max_retries:
-                    await self._wait_before_retry(attempt)
-                    continue
+        except httpx.TimeoutException as e:
+            logger.error(f"OpenRouter request timeout: {str(e)}")
+            raise LLMServiceError(f"Request timed out: {str(e)}")
 
-        # If we get here, all retries failed
-        if isinstance(last_exception, httpx.TimeoutException):
-            raise LLMServiceError(f"Request timed out after {self.max_retries} retries")
-        else:
-            raise LLMServiceError(
-                f"Request failed after {self.max_retries} retries: {str(last_exception)}"
-            )
+        except httpx.RequestError as e:
+            logger.error(f"Network error during OpenRouter request: {str(e)}")
+            raise LLMServiceError(f"Network error: {str(e)}")
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON response from OpenRouter: {str(e)}")
+            raise LLMServiceError(f"Invalid response format: {str(e)}")
+
+    async def _make_groq_request(
+        self, payload: Dict[str, Any], api_key: str
+    ) -> LLMResponse:
+        """Make API request to Groq."""
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        
+        groq_url = "https://api.groq.com/openai/v1/chat/completions"
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(
+                    groq_url,
+                    headers=headers,
+                    json=payload,
+                )
+                
+                if response.status_code != 200:
+                    error_msg = f"HTTP {response.status_code}: {response.text}"
+                    logger.error(f"Groq API error: {error_msg}")
+                    raise LLMServiceError(f"Groq API error: {error_msg}")
+                
+                data = response.json()
+                return self._parse_response(data)
+
+        except httpx.TimeoutException as e:
+            logger.error(f"Groq request timeout: {str(e)}")
+            raise LLMServiceError(f"Groq request timed out: {str(e)}")
+
+        except httpx.RequestError as e:
+            logger.error(f"Network error during Groq request: {str(e)}")
+            raise LLMServiceError(f"Groq network error: {str(e)}")
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON response from Groq: {str(e)}")
+            raise LLMServiceError(f"Invalid Groq response format: {str(e)}")
 
     def _parse_response(self, data: Dict[str, Any]) -> LLMResponse:
-        """
-        Parse the API response into an LLMResponse object.
-        """
+        """Parse the API response into an LLMResponse object."""
         try:
             if "choices" not in data or not data["choices"]:
                 raise LLMServiceError("No choices in API response")
@@ -312,20 +357,11 @@ class LLMService:
             )
 
         except (KeyError, IndexError) as e:
-            logger.error(f"Unexpected response format from OpenRouter: {data}")
+            logger.error(f"Unexpected response format: {data}")
             raise LLMServiceError(f"Unexpected response format: {str(e)}")
 
     def _clean_special_tokens(self, content: str) -> str:
-        """
-        Remove special control tokens that some models emit.
-        
-        Args:
-            content: Raw content that may contain special tokens
-            
-        Returns:
-            Cleaned content with special tokens removed
-        """
-        # List of special tokens to remove
+        """Remove special control tokens that some models emit."""
         special_tokens = [
             r'<｜begin▁of▁sentence｜>',
             r'<\|begin_of_sentence\|>',
@@ -341,47 +377,30 @@ class LLMService:
             r'<\|im_end\|>',
         ]
         
-        # Remove all special tokens
         for token in special_tokens:
             content = re.sub(token, '', content)
         
-        # Clean up any extra whitespace that might have been left
-        content = content.strip()
-        
-        return content
+        return content.strip()
 
     def _extract_json_from_markdown(self, content: str) -> str:
-        """
-        Extract JSON content from markdown code blocks.
-
-        Args:
-            content: Raw content that may contain markdown-wrapped JSON
-
-        Returns:
-            Extracted JSON string or original content if no markdown blocks found
-        """
-        # Check if content contains markdown code blocks
+        """Extract JSON content from markdown code blocks."""
+        # Check for ```json blocks
         if "```json" in content and "```" in content:
-            # Find the start and end of the JSON block
             start_marker = "```json"
             end_marker = "```"
 
             start_idx = content.find(start_marker)
             if start_idx != -1:
-                # Move past the start marker and any newline
                 json_start = start_idx + len(start_marker)
                 if json_start < len(content) and content[json_start] == "\n":
                     json_start += 1
 
-                # Find the end marker after the start
                 end_idx = content.find(end_marker, json_start)
                 if end_idx != -1:
-                    # Extract the JSON content
                     json_content = content[json_start:end_idx].strip()
-                    logger.debug(f"Extracted JSON from markdown: {json_content}")
                     return json_content
 
-        # Check for generic code blocks without language specification
+        # Check for generic ``` blocks
         elif "```" in content:
             lines = content.split("\n")
             in_code_block = False
@@ -393,30 +412,16 @@ class LLMService:
                         in_code_block = True
                         continue
                     else:
-                        # End of code block
                         break
                 elif in_code_block:
                     json_lines.append(line)
 
             if json_lines:
                 json_content = "\n".join(json_lines).strip()
-                # Validate that it looks like JSON
                 if json_content.startswith("{") and json_content.endswith("}"):
-                    logger.debug(
-                        f"Extracted JSON from generic code block: {json_content}"
-                    )
                     return json_content
 
-        # Return original content if no extraction needed
         return content
-
-    async def _wait_before_retry(self, attempt: int) -> None:
-        """
-        Wait before retrying with exponential backoff.
-        """
-        delay = min(2**attempt, 10)  # Cap at 10 seconds
-        logger.info(f"Waiting {delay} seconds before retry...")
-        await asyncio.sleep(delay)
 
     def create_system_message(self, content: str) -> LLMMessage:
         """Helper to create a system message."""
@@ -507,7 +512,6 @@ class LLMService:
             "default_model": self.default_model,
             "base_url": self.base_url,
             "timeout": str(self.timeout),
-            "max_retries": str(self.max_retries),
             "use_key_rotation": self.use_key_rotation,
         }
 
