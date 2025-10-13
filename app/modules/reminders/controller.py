@@ -147,3 +147,26 @@ async def get_due_reminders(
     """Get all reminders that are due for triggering (internal use)"""
     reminders = await reminder_service.get_due_reminders(db, limit)
     return [ReminderResponseDTO.model_validate(r) for r in reminders]
+
+
+@router.post("/fix-overdue", status_code=200)
+async def fix_overdue_reminders(
+    db: DatabaseDep,
+    reminder_service: ReminderServiceDep,
+    user_id: Optional[int] = Query(None, description="User ID to fix reminders for (optional, fixes all users if not provided)"),
+):
+    """
+    Fix overdue recurring reminders by recalculating their next trigger times.
+    
+    This endpoint is useful after fixing bugs in the trigger calculation logic
+    to update existing reminders that are stuck in an overdue state.
+    """
+    if user_id is not None and user_id <= 0:
+        raise ValidationError("User ID must be a positive integer")
+    
+    fixed_count = await reminder_service.fix_overdue_reminders(db, user_id)
+    return {
+        "message": f"Fixed {fixed_count} overdue reminder(s)",
+        "fixed_count": fixed_count,
+        "user_id": user_id
+    }

@@ -7,8 +7,12 @@ from sqlalchemy import and_, select
 from dateutil.relativedelta import relativedelta
 
 from app.modules.reminders.models import Reminder
-from app.modules.reminders.types import ReminderType, RecurrenceType, RecurrenceConfig
-from app.modules.reminders.dto import CreateReminderDTO, UpdateReminderDTO, ListRemindersDTO
+from app.modules.reminders.types import RecurrenceType, RecurrenceConfig
+from app.modules.reminders.dto import (
+    CreateReminderDTO,
+    UpdateReminderDTO,
+    ListRemindersDTO,
+)
 from app.core.exceptions import NotFoundError, ValidationError
 from app.utils.datetime import utc_now
 
@@ -16,7 +20,9 @@ from app.utils.datetime import utc_now
 class ReminderService:
     """Service for managing reminders."""
 
-    async def create_reminder(self, db: AsyncSession, user_id: int, data: CreateReminderDTO) -> Reminder:
+    async def create_reminder(
+        self, db: AsyncSession, user_id: int, data: CreateReminderDTO
+    ) -> Reminder:
         """Create a new reminder."""
         # Validate recurrence config
         if data.recurrence_type != RecurrenceType.ONCE and not data.recurrence_config:
@@ -48,14 +54,16 @@ class ReminderService:
             db.add(reminder)
             await db.commit()
             await db.refresh(reminder)
-            
+
             return reminder
-            
+
         except Exception as e:
             await db.rollback()
             raise
 
-    async def get_reminder(self, db: AsyncSession, reminder_id: int, user_id: int) -> Reminder:
+    async def get_reminder(
+        self, db: AsyncSession, reminder_id: int, user_id: int
+    ) -> Reminder:
         """Get a specific reminder."""
         result = await db.execute(
             select(Reminder).where(
@@ -69,7 +77,9 @@ class ReminderService:
         reminder = result.scalar_one_or_none()
 
         if not reminder:
-            raise NotFoundError(f"Reminder {reminder_id} not found", resource_id=str(reminder_id))
+            raise NotFoundError(
+                f"Reminder {reminder_id} not found", resource_id=str(reminder_id)
+            )
 
         return reminder
 
@@ -88,9 +98,7 @@ class ReminderService:
             conditions.append(Reminder.is_active == data.is_active)
 
         result = await db.execute(
-            select(Reminder)
-            .where(and_(*conditions))
-            .order_by(Reminder.next_trigger_at)
+            select(Reminder).where(and_(*conditions)).order_by(Reminder.next_trigger_at)
         )
         return list(result.scalars().all())
 
@@ -115,7 +123,9 @@ class ReminderService:
 
             # Update recurrence if changed
             if data.recurrence_type or data.recurrence_config:
-                recurrence_type = data.recurrence_type or RecurrenceType(reminder.recurrence_type)
+                recurrence_type = data.recurrence_type or RecurrenceType(
+                    reminder.recurrence_type
+                )
                 recurrence_config = data.recurrence_config or reminder.recurrence_config
 
                 reminder.recurrence_type = recurrence_type
@@ -138,17 +148,19 @@ class ReminderService:
 
             await db.commit()
             await db.refresh(reminder)
-            
+
             return reminder
-            
+
         except Exception as e:
             await db.rollback()
             raise
 
-    async def delete_reminder(self, db: AsyncSession, reminder_id: int, user_id: int) -> None:
+    async def delete_reminder(
+        self, db: AsyncSession, reminder_id: int, user_id: int
+    ) -> None:
         """Soft delete a reminder by marking deleted_at."""
         reminder = await self.get_reminder(db, reminder_id, user_id)
-        
+
         try:
             reminder.deleted_at = utc_now()
             await db.commit()
@@ -171,7 +183,9 @@ class ReminderService:
             await db.rollback()
             raise
 
-    async def complete_reminder(self, db: AsyncSession, reminder_id: int, user_id: int) -> Reminder:
+    async def complete_reminder(
+        self, db: AsyncSession, reminder_id: int, user_id: int
+    ) -> Reminder:
         """Mark a reminder as completed."""
         reminder = await self.get_reminder(db, reminder_id, user_id)
 
@@ -197,12 +211,14 @@ class ReminderService:
             await db.refresh(reminder)
 
             return reminder
-            
+
         except Exception as e:
             await db.rollback()
             raise
 
-    async def get_due_reminders(self, db: AsyncSession, limit: int = 100) -> List[Reminder]:
+    async def get_due_reminders(
+        self, db: AsyncSession, limit: int = 100
+    ) -> List[Reminder]:
         """Get reminders that are due for triggering."""
         result = await db.execute(
             select(Reminder)
@@ -217,7 +233,63 @@ class ReminderService:
         )
         return list(result.scalars().all())
 
-    async def process_triggered_reminder(self, db: AsyncSession, reminder: Reminder) -> None:
+    async def fix_overdue_reminders(
+        self, db: AsyncSession, user_id: Optional[int] = None
+    ) -> int:
+        """
+        Fix overdue recurring reminders by recalculating their next trigger times.
+
+        This method is useful after fixing bugs in the trigger calculation logic
+        to update existing reminders that are stuck in an overdue state.
+
+        Args:
+            db: Database session
+            user_id: Optional user ID to limit fix to specific user, None for all users
+
+        Returns:
+            Number of reminders fixed
+        """
+        try:
+            # Build query conditions
+            conditions = [
+                Reminder.is_active == True,
+                Reminder.next_trigger_at <= utc_now(),
+                Reminder.deleted_at.is_(None),
+                Reminder.recurrence_type != "once",  # Only fix recurring reminders
+            ]
+
+            if user_id:
+                conditions.append(Reminder.user_id == user_id)
+
+            # Get overdue recurring reminders
+            result = await db.execute(select(Reminder).where(and_(*conditions)))
+            overdue_reminders = list(result.scalars().all())
+
+            fixed_count = 0
+
+            for reminder in overdue_reminders:
+                # Recalculate next trigger using current logic
+                reminder.next_trigger_at = self._calculate_next_trigger(
+                    base_time=utc_now(),
+                    recurrence_type=RecurrenceType(reminder.recurrence_type),
+                    recurrence_config=(
+                        RecurrenceConfig.model_validate(reminder.recurrence_config)
+                        if reminder.recurrence_config
+                        else None
+                    ),
+                )
+                fixed_count += 1
+
+            await db.commit()
+            return fixed_count
+
+        except Exception as e:
+            await db.rollback()
+            raise
+
+    async def process_triggered_reminder(
+        self, db: AsyncSession, reminder: Reminder
+    ) -> None:
         """Process a reminder after it has been triggered."""
         try:
             reminder.last_triggered_at = utc_now()
@@ -238,7 +310,7 @@ class ReminderService:
                 reminder.is_active = False
 
             await db.commit()
-            
+
         except Exception as e:
             await db.rollback()
             raise
@@ -278,34 +350,52 @@ class ReminderService:
             raise ValidationError(f"Unsupported recurrence type: {recurrence_type}")
 
         return next_trigger
-    
-    def _parse_target_time(self, recurrence_config: Optional[RecurrenceConfig]) -> Optional[Tuple[int, int]]:
+
+    def _parse_target_time(
+        self, recurrence_config: Optional[RecurrenceConfig]
+    ) -> Optional[Tuple[int, int]]:
         """Parse target time from recurrence config."""
         if recurrence_config and recurrence_config.time:
             try:
                 hours, minutes = map(int, recurrence_config.time.split(":"))
                 if not (0 <= hours <= 23 and 0 <= minutes <= 59):
-                    raise ValidationError(f"Invalid time format: {recurrence_config.time}")
+                    raise ValidationError(
+                        f"Invalid time format: {recurrence_config.time}"
+                    )
                 return (hours, minutes)
             except ValueError:
                 raise ValidationError(f"Invalid time format: {recurrence_config.time}")
         return None
-    
-    def _apply_target_time(self, dt: datetime, target_time: Optional[Tuple[int, int]]) -> datetime:
+
+    def _apply_target_time(
+        self, dt: datetime, target_time: Optional[Tuple[int, int]]
+    ) -> datetime:
         """Apply target time to a datetime object."""
         if target_time:
             return dt.replace(
                 hour=target_time[0], minute=target_time[1], second=0, microsecond=0
             )
         return dt
-    
+
     def _calculate_daily_trigger(
         self, base_time: datetime, target_time: Optional[Tuple[int, int]]
     ) -> datetime:
         """Calculate next trigger for daily recurrence."""
-        next_trigger = base_time + timedelta(days=1)
-        return self._apply_target_time(next_trigger, target_time)
-    
+        if target_time:
+            # Check if target time for today has already passed
+            today_target = self._apply_target_time(base_time, target_time)
+
+            if base_time < today_target:
+                # Target time hasn't passed today, schedule for today
+                return today_target
+            else:
+                # Target time has passed today, schedule for tomorrow
+                tomorrow = base_time + timedelta(days=1)
+                return self._apply_target_time(tomorrow, target_time)
+        else:
+            # No specific time, just add a day
+            return base_time + timedelta(days=1)
+
     def _calculate_weekly_trigger(
         self,
         base_time: datetime,
@@ -335,7 +425,7 @@ class ReminderService:
 
         next_trigger = base_time + timedelta(days=days_ahead)
         return self._apply_target_time(next_trigger, target_time)
-    
+
     def _calculate_monthly_trigger(
         self,
         base_time: datetime,
@@ -361,7 +451,7 @@ class ReminderService:
             )
 
         return self._apply_target_time(next_trigger, target_time)
-    
+
     def _calculate_yearly_trigger(
         self,
         base_time: datetime,
