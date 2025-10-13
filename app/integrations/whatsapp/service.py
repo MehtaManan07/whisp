@@ -13,7 +13,7 @@ from app.integrations.whatsapp.schema import (
     HandleMessagePayload,
 )
 
-from app.pipeline.orchestrator import MessageOrchestrator
+from app.core.orchestrator import MessageOrchestrator
 
 
 logger = logging.getLogger(__name__)
@@ -70,29 +70,17 @@ class WhatsAppService:
                 if age > timedelta(
                     minutes=0.25
                 ):  # Ignore messages older than 0.5 minute
-                    print(f"Ignoring old message from {from_number} (age: {age})")
+                    logger.info(f"Ignoring old message from {from_number} (age: {age})")
                     continue
 
-            is_reply = bool(context)
-
-            if is_reply:
-                response = await self.orchestrator.handle_new_message(
-                    payload=HandleMessagePayload(
-                        **{"from": from_number},
-                        contact=contact,
-                        message=message,
-                    ),
-                    db=db,
-                )
-            else:
-                response = await self.orchestrator.handle_new_message(
-                    payload=HandleMessagePayload(
-                        **{"from": from_number},
-                        contact=contact,
-                        message=message,
-                    ),
-                    db=db,
-                )
+            response = await self.orchestrator.handle_new_message(
+                payload=HandleMessagePayload(
+                    **{"from": from_number},
+                    contact=contact,
+                    message=message,
+                ),
+                db=db,
+            )
 
             await self._send_bot_responses(response, from_number)
 

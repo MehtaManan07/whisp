@@ -108,7 +108,7 @@ class LLMService:
         Returns:
             LLMResponse object with the completion
         """
-        print(f"\033[94mLLMService.complete called\033[0m", kwargs)
+        logger.debug(f"LLMService.complete called with kwargs: {kwargs}")
 
         messages = [LLMMessage(role="user", content=prompt)]
         request = LLMRequest(
@@ -187,7 +187,7 @@ class LLMService:
         Raises:
             LLMServiceError: If Groq API key not configured or request fails
         """
-        print(f"\033[95mLLMService.complete_with_groq called\033[0m", kwargs)
+        logger.debug(f"LLMService.complete_with_groq called with kwargs: {kwargs}")
         
         messages = [LLMMessage(role="user", content=prompt)]
         request = LLMRequest(

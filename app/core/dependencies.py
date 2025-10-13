@@ -24,9 +24,8 @@ from app.modules.reminders.service import ReminderService
 # from app.modules.budgets.service import BudgetsService
 from app.modules.categories.service import CategoriesService
 from app.intelligence.intent.classifier import IntentClassifier
-from app.intelligence.extraction.extractor import Extractor
 from app.intelligence.categorization.classifier import CategoryClassifier
-from app.pipeline.orchestrator import MessageOrchestrator
+from app.core.orchestrator import MessageOrchestrator
 
 
 # ============================================================================
@@ -136,12 +135,6 @@ def get_intent_classifier():
     return IntentClassifier(llm_service=llm_service)
 
 
-@lru_cache()
-def get_extractor():
-    """Data extractor - SINGLETON"""
-    llm_service = get_llm_service()
-    category_classifier = get_category_classifier()
-    return Extractor(llm_service=llm_service, category_classifier=category_classifier)
 
 
 @lru_cache()
@@ -166,7 +159,8 @@ def get_orchestrator():
     return MessageOrchestrator(
         users_service=get_user_service(),
         intent_classifier=get_intent_classifier(),
-        extractor=get_extractor(),
+        llm_service=get_llm_service(),
+        category_classifier=get_category_classifier(),
     )
 
 
@@ -185,7 +179,6 @@ ExpenseServiceDep = Annotated[ExpensesService, Depends(get_expense_service)]
 UserServiceDep = Annotated[UsersService, Depends(get_user_service)]
 CategoryServiceDep = Annotated[CategoriesService, Depends(get_category_service)]
 ReminderServiceDep = Annotated[ReminderService, Depends(get_reminder_service)]
-ExtractorDep = Annotated[Extractor, Depends(get_extractor)]
 CategoryClassifierDep = Annotated[CategoryClassifier, Depends(get_category_classifier)]
 OrchestratorDep = Annotated[MessageOrchestrator, Depends(get_orchestrator)]
 

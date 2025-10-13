@@ -6,8 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import ValidationError, DatabaseError, ExternalServiceError
 from app.intelligence.extraction.router import route_intent
 from app.integrations.whatsapp.schema import HandleMessagePayload, ProcessMessageResult
-from app.intelligence.extraction.extractor import Extractor
+from app.intelligence.extraction.extractor import extract_dto
 from app.intelligence.intent.classifier import IntentClassifier
+from app.intelligence.categorization.classifier import CategoryClassifier
 from app.modules.users.dto import CreateUserDto
 from app.core.db import User
 import app.core.constants.whatsapp_responses as message_constants
@@ -28,12 +29,14 @@ class MessageOrchestrator:
         self,
         users_service: UsersService,
         intent_classifier: IntentClassifier,
-        extractor: Extractor,
+        llm_service,
+        category_classifier: CategoryClassifier,
     ):
         self.logger = logger
         self.users_service = users_service
         self.intent_classifier = intent_classifier
-        self.extractor = extractor
+        self.llm_service = llm_service
+        self.category_classifier = category_classifier
 
     # =============================================================================
     # MAIN ENTRY POINT
@@ -114,8 +117,12 @@ class MessageOrchestrator:
                 status="success",
             )
 
-        extracted_dto = await self.extractor.extract(
-            message=text, intent=intent, user_id=user.id
+        extracted_dto = await extract_dto(
+            message=text,
+            intent=intent,
+            user_id=user.id,
+            llm_service=self.llm_service,
+            category_classifier=self.category_classifier,
         )
         classified_result = (extracted_dto, intent)
 
@@ -192,7 +199,3 @@ class MessageOrchestrator:
             return None
         return payload.message.text.body.strip().lower()
 
-
-# =============================================================================
-# SERVICE INSTANCE
-# =============================================================================

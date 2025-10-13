@@ -5,8 +5,9 @@ from app.intelligence.intent.types import CLASSIFIED_RESULT
 from app.core.dependencies import (
     DatabaseDep,
     ExpenseServiceDep,
-    ExtractorDep,
     IntentClassifierDep,
+    LLMServiceDep,
+    CategoryClassifierDep,
 )
 from app.core.exceptions import ExpenseNotFoundError, ValidationError, DatabaseError
 from app.modules.expenses.dto import (
@@ -82,17 +83,23 @@ async def get_all_expenses(
 async def demo_intent(
     text: str,
     db: DatabaseDep,
-    expenses_service: ExpenseServiceDep,
     intent_classifier: IntentClassifierDep,
-    extractor: ExtractorDep,
+    llm_service: LLMServiceDep,
+    category_classifier: CategoryClassifierDep,
 ) -> CLASSIFIED_RESULT:
     """API endpoint to demo intent classification"""
     if not text or not text.strip():
         raise ValidationError("Text input is required")
     
-    return await expenses_service.demo_intent(
-        db=db,
-        text=text,
-        intent_classifier=intent_classifier,
-        extractor=extractor,
+    from app.intelligence.extraction.extractor import extract_dto
+    
+    user_id = 2  # Demo user
+    intent = await intent_classifier.classify(text)
+    dto = await extract_dto(
+        message=text,
+        intent=intent,
+        user_id=user_id,
+        llm_service=llm_service,
+        category_classifier=category_classifier,
     )
+    return (dto, intent)

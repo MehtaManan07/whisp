@@ -6,6 +6,7 @@ Goal: 90%+ hits without LLM calls
 
 import re
 import hashlib
+import logging
 from typing import Optional, Literal
 from typing_extensions import TypedDict
 import json
@@ -15,6 +16,8 @@ from app.integrations.llm.service import LLMService
 from .constants import CATEGORIES, MERCHANT_RULES
 from .prompts import build_classification_prompt
 from app.intelligence.intent.types import DTO_UNION
+
+logger = logging.getLogger(__name__)
 
 
 # Type definitions for classification results
@@ -91,7 +94,7 @@ class CategoryClassifier:
         text = self._get_best_classification_text(
             original_message, merchant, description
         )
-        print(f"\033[38;5;208mText:\033[0m {text}")
+        logger.debug(f"Classification text: {text}")
 
         # Tier 1: Rule-based classification (instant, free)
         if result := self._classify_by_rules(text):
@@ -220,7 +223,7 @@ class CategoryClassifier:
                 return cached
         except Exception as e:
             # Cache failure shouldn't break classification
-            print(f"Cache retrieval error: {e}")
+            logger.warning(f"Cache retrieval error: {e}")
 
         return None
 
@@ -235,7 +238,7 @@ class CategoryClassifier:
             # data is already a CacheableClassification, so we can use it directly
             self.cache.set_key(key, data, ttl)
         except Exception as e:
-            print(f"Cache save error: {e}")
+            logger.warning(f"Cache save error: {e}")
 
     async def _classify_by_llm(
         self, text: str, amount: Optional[float]
@@ -271,7 +274,7 @@ class CategoryClassifier:
 
         except Exception as e:
             # LLM failure - return default
-            print(f"LLM classification error: {e}")
+            logger.error(f"LLM classification error: {e}")
             return {
                 "category": "Other",
                 "subcategory": "Miscellaneous",

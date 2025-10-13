@@ -3,10 +3,6 @@ from sqlalchemy import select
 from typing import Dict, Any
 import dateparser
 
-from app.intelligence.intent.classifier import IntentClassifier
-
-from app.intelligence.extraction.extractor import Extractor
-from app.intelligence.intent.types import CLASSIFIED_RESULT
 from app.core.db import Expense, Category
 from app.core.exceptions import ExpenseNotFoundError, DatabaseError
 from app.modules.expenses.dto import (
@@ -32,7 +28,7 @@ class ExpensesService:
     async def get_expenses(
         self, db: AsyncSession, data: GetAllExpensesModel
     ) -> list[ExpenseResponse] | str:
-        print(f"\033[94mExpensesService.get_expenses called\033[0m", data)
+        self.logger.debug(f"ExpensesService.get_expenses called with data: {data}")
         # Parse and validate dates only once
         start_date = dateparser.parse(data.start_date) if data.start_date else None
         end_date = dateparser.parse(data.end_date) if data.end_date else None
@@ -95,7 +91,7 @@ class ExpensesService:
                 )
             )
 
-        print(f"\033[94mQuery:\033[0m {query}")
+        self.logger.debug(f"Executing query: {query}")
         result = await db.execute(query)
 
         if agg_func is None:
@@ -199,16 +195,3 @@ class ExpensesService:
             raise DatabaseError(f"update expense: {str(e)}")
 
         return None
-
-    async def demo_intent(
-        self,
-        db: AsyncSession,
-        text: str,
-        intent_classifier: IntentClassifier,
-        extractor: Extractor,
-    ) -> CLASSIFIED_RESULT:
-        """Demo intent classification"""
-        user_id = 2
-        intent = await intent_classifier.classify(text)
-        extract_dto = await extractor.extract(text, intent, user_id)
-        return (extract_dto, intent)
