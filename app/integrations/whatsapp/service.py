@@ -28,7 +28,7 @@ class WhatsAppService:
         self.orchestrator = orchestrator
 
     async def verify_webhook(self, mode: str, token: str, challenge: str) -> int:
-        """Verify webhook subscription"""
+        """Verify webhook subscription."""
         if mode == "subscribe" and token == self.webhook_verify_token:
             return int(challenge)
 
@@ -38,7 +38,7 @@ class WhatsAppService:
         )
 
     async def handle_webhook(self, payload: WebhookPayload, db: AsyncSession) -> None:
-        """Process incoming WhatsApp webhook payload"""
+        """Process incoming WhatsApp webhook payload."""
         change = payload.entry[0].changes[0] if payload.entry else None
 
         if not change or change.field != "messages":
@@ -114,7 +114,7 @@ class WhatsAppService:
     async def send_text(
         self, to: str, text: str, preview_url: bool = True
     ) -> Dict[str, Any]:
-        """Send text message via WhatsApp API"""
+        """Send text message via WhatsApp API."""
         if not to or not to.strip():
             raise ValidationError("Recipient phone number is required")
         
@@ -166,7 +166,7 @@ class WhatsAppService:
     async def _send_bot_responses(
         self, response: Optional[ProcessMessageResult], recipient: str
     ) -> None:
-        """Send bot responses to user"""
+        """Send bot responses to user."""
         if not response or not response.messages:
             return
 

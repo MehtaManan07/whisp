@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from typing import List, Dict, Optional
 
 from app.core.dependencies import DatabaseDep, CategoryServiceDep
-from app.core.exceptions import ValidationError, CategoryNotFoundError
+from app.core.exceptions import ValidationError
 from app.modules.categories.dto import (
     CreateCategoryDto,
     CategoryResponseDto,

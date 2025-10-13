@@ -9,13 +9,12 @@ from app.core.dependencies import (
     LLMServiceDep,
     CategoryClassifierDep,
 )
-from app.core.exceptions import ExpenseNotFoundError, ValidationError, DatabaseError
+from app.core.exceptions import ValidationError
 from app.modules.expenses.dto import (
     CreateExpenseModel,
     DeleteExpenseModel,
     GetAllExpensesModel,
 )
-from app.modules.expenses.models import Expense
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
 

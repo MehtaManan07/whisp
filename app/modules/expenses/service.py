@@ -112,7 +112,7 @@ class ExpensesService:
             return str(agg_result) if agg_result is not None else "0"
 
     async def create_expense(self, db: AsyncSession, data: CreateExpenseModel) -> None:
-        """Create a new expense without returning any response"""
+        """Create a new expense."""
         try:
             # Handle category and subcategory creation
             category_data = await self.categories_service.find_or_create_with_parent(
@@ -143,7 +143,7 @@ class ExpensesService:
         return None
 
     async def delete_expense(self, db: AsyncSession, data: DeleteExpenseModel) -> None:
-        """Soft delete an expense by setting deleted_at (no return)"""
+        """Soft delete an expense by setting deleted_at."""
         id = data.id
 
         try:
@@ -170,7 +170,7 @@ class ExpensesService:
     async def update_expense(
         self, db: AsyncSession, expense_id: int, update_data: Dict[str, Any]
     ) -> None:
-        """Update an expense's details (no return)"""
+        """Update an expense's details."""
         try:
             expense = await db.get(Expense, expense_id)
             if expense is None or expense.deleted_at is not None:

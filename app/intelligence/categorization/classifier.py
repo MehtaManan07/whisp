@@ -51,13 +51,7 @@ class CategoryClassifier:
     """
 
     def __init__(self, cache_service: CacheService, llm_service: LLMService):
-        """
-        Initialize CategoryClassifier with type-safe dependencies.
-
-        Args:
-            cache_service: CacheService instance for Redis operations
-            llm_service: LLMService instance for LLM classification
-        """
+        """Initialize CategoryClassifier."""
         self.cache = cache_service
         self.llm = llm_service
 
@@ -67,21 +61,7 @@ class CategoryClassifier:
         dto_instance: DTO_UNION,
         user_id: int,
     ) -> ClassificationResult:
-        """
-        Main classification method
-
-        Args:
-            original_message: The original user message
-            dto_instance: The extracted DTO instance containing structured data
-            user_id: The user ID for personalized classification
-
-        Returns:
-            ClassificationResult: Type-safe classification result containing:
-                - category: The main expense category (null for non-transactional queries)
-                - subcategory: The specific subcategory (null for non-transactional queries)
-                - confidence: Confidence level (0.0 to 1.0)
-                - method: Classification method used ("rule", "cache", "llm", "user_pattern", "non_transaction")
-        """
+        """Classify expense using 3-tier strategy: rules, cache, LLM."""
 
 
         # Extract fields from DTO
@@ -141,16 +121,7 @@ class CategoryClassifier:
     def _get_best_classification_text(
         self, original_message: str, merchant: Optional[str], description: Optional[str]
     ) -> str:
-        """
-        Intelligently choose the best text source for classification.
-
-        Strategy:
-        1. If we have both merchant and description, use them (most specific)
-        2. If we have only merchant, use it
-        3. If we have only description, use it
-        4. If we have neither, fall back to original message
-        5. Always normalize the chosen text
-        """
+        """Choose the best text for classification from available sources."""
         extracted_parts = [p for p in [merchant, description] if p and p.strip()]
 
         if extracted_parts:
@@ -184,10 +155,7 @@ class CategoryClassifier:
     async def _classify_by_user_pattern(
         self, user_id: int, merchant: Optional[str]
     ) -> Optional[CacheableClassification]:
-        """
-        Classify based on user's historical patterns
-        If user has logged this merchant before, use their preference
-        """
+        """Classify based on user's historical patterns for this merchant."""
         if not merchant:
             return None
 
@@ -288,10 +256,7 @@ class CategoryClassifier:
         new_category: str,
         new_subcategory: str,
     ) -> None:
-        """
-        User corrects a category - update patterns
-        This is how the system gets smarter over time
-        """
+        """Update patterns when user corrects a category."""
         correction_data: CacheableClassification = {
             "category": new_category,
             "subcategory": new_subcategory,

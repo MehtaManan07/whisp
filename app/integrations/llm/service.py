@@ -46,10 +46,7 @@ class LLMResponse:
 
 
 class LLMService:
-    """
-    Service class for making LLM calls via OpenRouter and Groq APIs.
-    Provides a centralized interface for all agents to interact with language models.
-    """
+    """Service for making LLM calls via OpenRouter and Groq APIs."""
 
     def __init__(
         self,
@@ -60,17 +57,7 @@ class LLMService:
         base_url: str = "https://openrouter.ai/api/v1",
         use_key_rotation: bool = True,
     ):
-        """
-        Initialize the LLM service.
-
-        Args:
-            api_key_manager: APIKeyManager instance for key rotation
-            api_key: OpenRouter API key (if provided, disables key rotation)
-            model_name: Default model to use (defaults to config value)
-            timeout: Request timeout in seconds
-            base_url: Base URL for OpenRouter API
-            use_key_rotation: Whether to use automatic key rotation (default: True)
-        """
+        """Initialize the LLM service."""
         self.api_key_manager = api_key_manager
         self.use_key_rotation = (
             use_key_rotation and api_key is None and api_key_manager is not None
@@ -93,19 +80,7 @@ class LLMService:
         temperature: float = 0.7,
         **kwargs,
     ) -> LLMResponse:
-        """
-        Simple completion interface for single prompt requests.
-
-        Args:
-            prompt: The prompt to send to the LLM
-            model: Model to use (defaults to configured model)
-            max_tokens: Maximum tokens to generate
-            temperature: Temperature for generation
-            **kwargs: Additional parameters for the API
-
-        Returns:
-            LLMResponse object with the completion
-        """
+        """Simple completion interface for single prompt requests."""
         messages = [LLMMessage(role="user", content=prompt)]
         request = LLMRequest(
             messages=messages,
@@ -117,18 +92,7 @@ class LLMService:
         return await self.chat(request)
 
     async def chat(self, request: LLMRequest) -> LLMResponse:
-        """
-        Main chat interface supporting conversation history using OpenRouter.
-
-        Args:
-            request: LLMRequest object with messages and parameters
-
-        Returns:
-            LLMResponse object with the response
-
-        Raises:
-            LLMServiceError: For various API and service errors
-        """
+        """Main chat interface supporting conversation history using OpenRouter."""
         # Get API key (either from rotation or fixed key)
         if self.use_key_rotation:
             key_result = self.api_key_manager.get_available_key()
@@ -164,25 +128,7 @@ class LLMService:
         temperature: float = 0.7,
         **kwargs,
     ) -> LLMResponse:
-        """
-        Use Groq API for fast inference with Llama models.
-        
-        Groq provides extremely fast inference speeds (up to 750 tokens/sec).
-        
-        Args:
-            prompt: The prompt to send to the LLM
-            model: Groq model to use (default: llama-3.3-70b-versatile)
-                   Other options: llama-3.1-8b-instant, mixtral-8x7b-32768, etc.
-            max_tokens: Maximum tokens to generate
-            temperature: Temperature for generation
-            **kwargs: Additional parameters for the API
-            
-        Returns:
-            LLMResponse object with the completion
-            
-        Raises:
-            LLMServiceError: If Groq API key not configured or request fails
-        """
+        """Use Groq API for fast inference with Llama models."""
         messages = [LLMMessage(role="user", content=prompt)]
         request = LLMRequest(
             messages=messages,
@@ -195,18 +141,7 @@ class LLMService:
         return await self.chat_with_groq(request)
 
     async def chat_with_groq(self, request: LLMRequest) -> LLMResponse:
-        """
-        Chat interface using Groq API.
-        
-        Args:
-            request: LLMRequest object with messages and parameters
-            
-        Returns:
-            LLMResponse object with the response
-            
-        Raises:
-            LLMServiceError: If Groq API key not configured or request fails
-        """
+        """Chat interface using Groq API."""
         groq_api_key = config.groq_api_key
         if not groq_api_key:
             raise LLMServiceError("Groq API key not configured. Set GROQ_API_KEY in .env")
@@ -435,17 +370,7 @@ class LLMService:
         messages: Optional[List[Dict[str, str]]] = None,
         user_message: Optional[str] = None,
     ) -> List[LLMMessage]:
-        """
-        Helper to build a conversation with system prompt and message history.
-
-        Args:
-            system_prompt: Optional system prompt
-            messages: Optional list of {"role": str, "content": str} messages
-            user_message: Optional final user message to add
-
-        Returns:
-            List of LLMMessage objects
-        """
+        """Build a conversation with system prompt and message history."""
         conversation = []
 
         if system_prompt:
@@ -471,20 +396,7 @@ class LLMService:
         temperature: float = 0.7,
         **kwargs,
     ) -> LLMResponse:
-        """
-        Convenience method for generating with a system prompt and user message.
-
-        Args:
-            system_prompt: System prompt to set context
-            user_message: User message to respond to
-            model: Model to use
-            max_tokens: Maximum tokens to generate
-            temperature: Temperature for generation
-            **kwargs: Additional parameters
-
-        Returns:
-            LLMResponse object
-        """
+        """Generate response with system prompt and user message."""
         messages = [
             self.create_system_message(system_prompt),
             self.create_user_message(user_message),
@@ -533,13 +445,7 @@ class LLMService:
         return info
 
     def get_key_usage_info(self) -> List[Dict[str, Union[str, int, bool]]]:
-        """
-        Get detailed usage information for all API keys.
-        Only works when key rotation is enabled.
-
-        Returns:
-            List of dictionaries with key usage information
-        """
+        """Get detailed usage information for all API keys (key rotation only)."""
         if not self.use_key_rotation:
             return [{"error": "Key rotation is disabled"}]
 

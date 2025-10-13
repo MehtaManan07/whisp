@@ -27,7 +27,7 @@ class CategoriesService:
     async def find_or_create(
         self, db: AsyncSession, category_data: CreateCategoryDto
     ) -> FindOrCreateResult:
-        """Find existing category or create new one"""
+        """Find existing category or create new one."""
         # Try to find existing category
         query = select(Category).where(Category.name == category_data.name)
 
@@ -62,7 +62,7 @@ class CategoriesService:
         category_name: str,
         subcategory_name: Optional[str] = None,
     ) -> FindOrCreateResult:
-        """Find or create category and subcategory if specified"""
+        """Find or create category and subcategory if specified."""
         # First, find or create the parent category
         parent_result = await self.find_or_create(
             db, CreateCategoryDto(name=category_name)
@@ -81,7 +81,7 @@ class CategoriesService:
         return subcategory_result
 
     async def get_category_tree(self, db: AsyncSession) -> List[CategoryTreeDto]:
-        """Get all categories organized in a tree structure"""
+        """Get all categories organized in a tree structure."""
         # Get all categories with their subcategories
         result = await db.execute(
             select(Category)
@@ -115,7 +115,7 @@ class CategoriesService:
         return category_trees
 
     async def get_all_categories(self, db: AsyncSession) -> List[CategoryResponseDto]:
-        """Get all categories as a flat list with hierarchy information"""
+        """Get all categories as a flat list with hierarchy information."""
         result = await db.execute(
             select(Category)
             .options(selectinload(Category.parent))
@@ -135,11 +135,10 @@ class CategoriesService:
             for cat in categories
         ]
 
-    # Get recent categories used
     async def get_recent_categories(
         self, db: AsyncSession, user_id: int, limit: int = 10
     ) -> Dict[Literal["categories"], Sequence[Category]]:
-        """Fetch recent categories used by the user"""
+        """Fetch recent categories used by the user."""
         sql = text(GET_RECENT_CATEGORIES)
         result = await db.execute(sql, {"user_id": user_id, "limit": limit})
 
@@ -153,7 +152,7 @@ class CategoriesService:
     async def get_categories_with_usage_count(
         self, db: AsyncSession, user_id: int
     ) -> List[Dict]:
-        """Get categories with their usage count for the user"""
+        """Get categories with their usage count for the user."""
         sql = text(GET_CATEGORIES_WITH_USAGE_COUNT)
         result = await db.execute(sql, {"user_id": user_id})
 

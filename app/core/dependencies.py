@@ -6,7 +6,6 @@ Singletons for stateless services, per-request for DB sessions
 
 from functools import lru_cache
 from typing import AsyncGenerator, Annotated
-from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
@@ -20,8 +19,6 @@ from app.integrations.whatsapp.service import WhatsAppService
 from app.modules.expenses.service import ExpensesService
 from app.modules.users.service import UsersService
 from app.modules.reminders.service import ReminderService
-
-# from app.modules.budgets.service import BudgetsService
 from app.modules.categories.service import CategoriesService
 from app.intelligence.intent.classifier import IntentClassifier
 from app.intelligence.categorization.classifier import CategoryClassifier
