@@ -84,8 +84,6 @@ class LLMService:
             self.api_key = config.open_router_api_key
             if not self.api_key:
                 logger.warning("OpenRouter API key not configured and key rotation disabled")
-        elif self.use_key_rotation:
-            logger.info("LLM service initialized with automatic key rotation")
 
     async def complete(
         self,
@@ -108,8 +106,6 @@ class LLMService:
         Returns:
             LLMResponse object with the completion
         """
-        logger.debug(f"LLMService.complete called with kwargs: {kwargs}")
-
         messages = [LLMMessage(role="user", content=prompt)]
         request = LLMRequest(
             messages=messages,
@@ -187,8 +183,6 @@ class LLMService:
         Raises:
             LLMServiceError: If Groq API key not configured or request fails
         """
-        logger.debug(f"LLMService.complete_with_groq called with kwargs: {kwargs}")
-        
         messages = [LLMMessage(role="user", content=prompt)]
         request = LLMRequest(
             messages=messages,

@@ -44,8 +44,6 @@ class CategoriesService:
             return {"category": category, "is_existing_category": True}
 
         # Create new category
-        self.logger.info(f"Creating new category with name: {category_data.name}")
-
         new_category = Category(
             name=category_data.name,
             description=category_data.description,
@@ -142,10 +140,6 @@ class CategoriesService:
         self, db: AsyncSession, user_id: int, limit: int = 10
     ) -> Dict[Literal["categories"], Sequence[Category]]:
         """Fetch recent categories used by the user"""
-        self.logger.info(
-            f"Fetching recent categories for user_id: {user_id} with limit: {limit}"
-        )
-
         sql = text(GET_RECENT_CATEGORIES)
         result = await db.execute(sql, {"user_id": user_id, "limit": limit})
 
@@ -160,8 +154,6 @@ class CategoriesService:
         self, db: AsyncSession, user_id: int
     ) -> List[Dict]:
         """Get categories with their usage count for the user"""
-        self.logger.info(f"Fetching categories with usage count for user_id: {user_id}")
-
         sql = text(GET_CATEGORIES_WITH_USAGE_COUNT)
         result = await db.execute(sql, {"user_id": user_id})
 

@@ -30,7 +30,6 @@ class WhatsAppService:
     async def verify_webhook(self, mode: str, token: str, challenge: str) -> int:
         """Verify webhook subscription"""
         if mode == "subscribe" and token == self.webhook_verify_token:
-            logger.info("Webhook verified successfully!")
             return int(challenge)
 
         raise HTTPException(
@@ -69,7 +68,6 @@ class WhatsAppService:
             
             # Only process text messages, skip others gracefully
             if message_type != "text":
-                logger.info(f"Skipping non-text message type '{message_type}' from {from_number}")
                 continue
             
             # Skip messages without text content
@@ -86,11 +84,7 @@ class WhatsAppService:
                 if age > timedelta(
                     minutes=0.25
                 ):  # Ignore messages older than 0.5 minute
-                    logger.info(f"Ignoring old message from {from_number} (age: {age})")
                     continue
-
-            # Log incoming message
-            logger.info(f"📨 Incoming WhatsApp message from {from_number}: '{message_text}'")
 
             response = await self.orchestrator.handle_new_message(
                 payload=HandleMessagePayload(
@@ -157,9 +151,7 @@ class WhatsAppService:
                     logger.error(f"Failed to send WhatsApp message: {error_data}")
                     raise WhatsAppAPIError(f"Failed to send message: {error_message}")
 
-                result = response.json()
-                logger.info(f"WhatsApp message sent successfully to {to}")
-                return result
+                return response.json()
 
         except httpx.RequestError as e:
             logger.error(f"Network error sending WhatsApp message: {str(e)}")
@@ -176,21 +168,14 @@ class WhatsAppService:
     ) -> None:
         """Send bot responses to user"""
         if not response or not response.messages:
-            logger.warning(f"No response to send to {recipient}")
             return
 
         # Send messages for both success and error responses
-        message_count = len(response.messages)
-        logger.info(f"📤 Sending {message_count} message(s) to {recipient}")
-        
         for idx, msg in enumerate(response.messages, 1):
             try:
-                send_start = time.time()
                 await self.send_text(recipient, msg)
-                send_time = (time.time() - send_start) * 1000
-                logger.debug(f"   Message {idx}/{message_count} sent in {send_time:.2f}ms")
             except Exception as e:
-                logger.error(f"Failed to send message {idx}/{message_count} to user {recipient}: {str(e)}")
+                logger.error(f"Failed to send message {idx}/{len(response.messages)} to user {recipient}: {str(e)}")
                 # Don't re-raise here to avoid infinite error loops
 
 

@@ -29,7 +29,6 @@ class ExpensesService:
     async def get_expenses(
         self, db: AsyncSession, data: GetAllExpensesModel
     ) -> list[ExpenseResponse] | str:
-        self.logger.debug(f"ExpensesService.get_expenses called with data: {data}")
         # Parse and validate dates only once
         start_date = dateparser.parse(data.start_date) if data.start_date else None
         end_date = dateparser.parse(data.end_date) if data.end_date else None
@@ -96,7 +95,6 @@ class ExpensesService:
         if agg_func is None:
             query = query.options(selectinload(Expense.category))
         
-        self.logger.debug(f"Executing query: {query}")
         result = await db.execute(query)
 
         if agg_func is None:
@@ -115,8 +113,6 @@ class ExpensesService:
 
     async def create_expense(self, db: AsyncSession, data: CreateExpenseModel) -> None:
         """Create a new expense without returning any response"""
-        self.logger.info(f"Creating new expense for user_id: {data.user_id}")
-
         try:
             # Handle category and subcategory creation
             category_data = await self.categories_service.find_or_create_with_parent(
@@ -139,8 +135,6 @@ class ExpensesService:
 
             db.add(new_expense)
             await db.commit()
-
-            self.logger.info(f"Created expense for user_id: {data.user_id}")
         except Exception as e:
             await db.rollback()
             self.logger.error(f"Database error during expense creation: {str(e)}")
@@ -150,7 +144,6 @@ class ExpensesService:
 
     async def delete_expense(self, db: AsyncSession, data: DeleteExpenseModel) -> None:
         """Soft delete an expense by setting deleted_at (no return)"""
-        self.logger.info(f"Deleting expense with ID: {data.id}")
         id = data.id
 
         try:
@@ -178,8 +171,6 @@ class ExpensesService:
         self, db: AsyncSession, expense_id: int, update_data: Dict[str, Any]
     ) -> None:
         """Update an expense's details (no return)"""
-        self.logger.info(f"Updating expense with ID: {expense_id}")
-
         try:
             expense = await db.get(Expense, expense_id)
             if expense is None or expense.deleted_at is not None:

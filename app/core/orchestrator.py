@@ -46,8 +46,6 @@ class MessageOrchestrator:
         self, payload: HandleMessagePayload, db: AsyncSession
     ) -> Optional[ProcessMessageResult]:
         """Main entry point for handling new incoming messages"""
-        self.logger.info(f"Handling new message: {payload}")
-
         try:
             # Ensure user exists in DB
             user = await self._ensure_user(payload, db)

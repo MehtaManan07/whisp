@@ -26,8 +26,6 @@ class UsersService:
             return {"user": user, "is_existing_user": True}
 
         # Create new user
-        self.logger.info(f"Creating new user with wa_id: {user_data.wa_id}")
-
         new_user = User(
             wa_id=user_data.wa_id,
             name=user_data.name,

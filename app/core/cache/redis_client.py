@@ -25,7 +25,6 @@ class RedisClient:
 
             # Test connection
             self._client.ping()
-            logger.info("Redis connection initialized successfully")
 
         except Exception as e:
             logger.error(f"Failed to initialize Redis connection: {e}")

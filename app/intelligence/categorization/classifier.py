@@ -94,7 +94,6 @@ class CategoryClassifier:
         text = self._get_best_classification_text(
             original_message, merchant, description
         )
-        logger.debug(f"Classification text: {text}")
 
         # Tier 1: Rule-based classification (instant, free)
         if result := self._classify_by_rules(text):

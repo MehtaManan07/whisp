@@ -22,7 +22,6 @@ async def verify_webhook(
     challenge: str = Query(alias="hub.challenge"),
 ) -> int:
     """Verify WhatsApp webhook subscription"""
-    logger.info("Webhook verification request received")
     return await whatsapp_service.verify_webhook(mode, token, challenge)
 
 
@@ -33,8 +32,6 @@ async def handle_webhook(
     whatsapp_service: WhatsAppServiceDep,
 ) -> Dict[str, str]:
     """Handle incoming WhatsApp webhook"""
-    logger.info("Webhook payload received")
-    
     try:
         # Try to parse as WebhookPayload
         validated_payload = WebhookPayload(**payload)
@@ -43,7 +40,6 @@ async def handle_webhook(
         # Log validation errors but don't fail the request
         # WhatsApp sends many types of webhooks (status updates, etc.)
         logger.warning(f"Webhook validation/processing failed: {str(e)[:200]}")
-        logger.debug(f"Webhook payload: {payload}")
     
     return {"status": "ok"}
 
@@ -60,7 +56,6 @@ async def send_text(
     if not body.message or not body.message.strip():
         raise ValidationError("Message content is required")
     
-    logger.info(f"Sending message to {body.recipient}")
     result = await whatsapp_service.send_text(body.recipient, body.message, True)
     return result
 
@@ -75,6 +70,5 @@ async def classify_intent(
     if not message or not message.strip():
         raise ValidationError("Message is required")
     
-    logger.info(f"Classifying intent for message: {message}")
     intent = await intent_classifier.classify(message)
     return {"message": message, "intent": intent.value}
