@@ -2,7 +2,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional, Any
-from sqlalchemy import ForeignKey, Numeric, String, DateTime, Text, Boolean
+from sqlalchemy import ForeignKey, Numeric, String, DateTime, Text, Boolean, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from app.utils.datetime import utc_now
@@ -15,6 +15,10 @@ class Reminder(BaseModel):
     """Model for storing user reminders with recurrence support."""
 
     __tablename__ = "reminders"
+    __table_args__ = (
+        # Composite index for efficient reminder scheduling queries
+        Index('idx_reminders_composite', 'user_id', 'is_active', 'next_trigger_at'),
+    )
 
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),

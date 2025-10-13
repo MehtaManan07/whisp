@@ -28,13 +28,23 @@ async def verify_webhook(
 
 @router.post("/webhook")
 async def handle_webhook(
-    payload: WebhookPayload,
+    payload: Dict[str, Any],
     db: DatabaseDep,
     whatsapp_service: WhatsAppServiceDep,
 ) -> Dict[str, str]:
     """Handle incoming WhatsApp webhook"""
     logger.info("Webhook payload received")
-    await whatsapp_service.handle_webhook(payload, db)
+    
+    try:
+        # Try to parse as WebhookPayload
+        validated_payload = WebhookPayload(**payload)
+        await whatsapp_service.handle_webhook(validated_payload, db)
+    except Exception as e:
+        # Log validation errors but don't fail the request
+        # WhatsApp sends many types of webhooks (status updates, etc.)
+        logger.warning(f"Webhook validation/processing failed: {str(e)[:200]}")
+        logger.debug(f"Webhook payload: {payload}")
+    
     return {"status": "ok"}
 
 

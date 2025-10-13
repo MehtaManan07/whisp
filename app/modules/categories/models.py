@@ -1,5 +1,5 @@
 from typing import TYPE_CHECKING, Optional, List
-from sqlalchemy import String, ForeignKey
+from sqlalchemy import String, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db.base import BaseModel
@@ -10,6 +10,10 @@ if TYPE_CHECKING:
 
 class Category(BaseModel):
     __tablename__ = "categories"
+    __table_args__ = (
+        # Composite unique index prevents duplicate categories and speeds up lookups
+        Index('idx_categories_name_parent', 'name', 'parent_id', unique=True),
+    )
 
     name: Mapped[str] = mapped_column(String, nullable=False, index=True)
 
@@ -29,8 +33,10 @@ class Category(BaseModel):
         "Category", back_populates="parent", cascade="all, delete-orphan"
     )
 
+    # Changed from lazy="selectin" to lazy="noload"
+    # Prevents loading ALL expenses when fetching a category
     expenses: Mapped[List["Expense"]] = relationship(
-        "Expense", back_populates="category", lazy="selectin"
+        "Expense", back_populates="category", lazy="noload"
     )
 
     @property

@@ -42,17 +42,20 @@ class User(BaseModel):
     meta: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
 
     # Relationships - forward reference to avoid circular imports
+    # Changed from lazy="selectin" to lazy="noload" to prevent loading ALL user's data
+    # This prevents fetching 1000+ expenses when you just need user info
+    # Use explicit selectinload() in queries when you actually need the relationships
     expenses: Mapped[List["Expense"]] = relationship(
         "Expense",
         back_populates="user",
-        lazy="selectin",  # Efficient loading strategy
+        lazy="noload",
         cascade="all, delete-orphan",
     )
 
     reminders: Mapped[List["Reminder"]] = relationship(
         "Reminder",
         back_populates="user",
-        lazy="selectin",
+        lazy="noload",
         cascade="all, delete-orphan",
     )
 

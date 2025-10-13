@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
-from sqlalchemy import ForeignKey, String, Float, DateTime
+from sqlalchemy import ForeignKey, String, Float, DateTime, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db.base import BaseModel
@@ -12,6 +12,13 @@ if TYPE_CHECKING:
 
 class Expense(BaseModel):
     __tablename__ = "expenses"
+    __table_args__ = (
+        # Indexes for query performance
+        Index('idx_expenses_timestamp', 'timestamp'),
+        Index('idx_expenses_vendor', 'vendor'),
+        Index('idx_expenses_deleted_at', 'deleted_at'),
+        Index('idx_expenses_user_timestamp', 'user_id', 'timestamp'),
+    )
 
     # Foreign key relationships using integer IDs from BaseModel
     user_id: Mapped[int] = mapped_column(
@@ -36,12 +43,14 @@ class Expense(BaseModel):
     )
 
     # Relationships
+    # Changed from lazy="selectin" to lazy="noload" to prevent automatic loading
+    # Use explicit selectinload() in queries when needed
     user: Mapped["User"] = relationship(
-        "User", back_populates="expenses", lazy="selectin"
+        "User", back_populates="expenses", lazy="noload"
     )
 
     category: Mapped[Optional["Category"]] = relationship(
-        "Category", back_populates="expenses", lazy="selectin"
+        "Category", back_populates="expenses", lazy="noload"
     )
 
     vendor: Mapped[Optional[str]] = mapped_column(String, nullable=True)

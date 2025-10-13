@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from typing import Dict, Any
 import dateparser
 
@@ -91,6 +92,10 @@ class ExpensesService:
                 )
             )
 
+        # Eagerly load categories to avoid N+1 queries (1 query instead of N)
+        if agg_func is None:
+            query = query.options(selectinload(Expense.category))
+        
         self.logger.debug(f"Executing query: {query}")
         result = await db.execute(query)
 

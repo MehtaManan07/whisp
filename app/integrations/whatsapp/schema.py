@@ -26,7 +26,7 @@ class WebhookMessage(BaseModel):
     from_: str = Field(alias="from")  # Handle reserved keyword
     id: str
     timestamp: str
-    type: Literal["text", "image"]
+    type: str  # Can be: text, image, audio, video, document, sticker, location, contacts, etc.
     text: Optional[WebhookMessageText] = None
     image: Optional[WebhookMessageImage] = None
     context: Optional[WebhookMessageContext] = None
@@ -47,10 +47,10 @@ class WebhookStatusPricing(BaseModel):
 
 class WebhookStatus(BaseModel):
     id: str
-    status: Literal["sent", "delivered", "read", "failed"]
+    status: str  # Can be: sent, delivered, read, failed, deleted, etc.
     timestamp: str
     recipient_id: str
-    conversation: WebhookStatusConversation
+    conversation: Optional[WebhookStatusConversation] = None
     pricing: Optional[WebhookStatusPricing] = None
 
 
@@ -60,7 +60,7 @@ class WebhookMetadata(BaseModel):
 
 
 class WebhookValue(BaseModel):
-    messaging_product: Literal["whatsapp"]
+    messaging_product: str  # Usually "whatsapp" but be flexible
     metadata: WebhookMetadata
     contacts: Optional[List[WebhookContact]] = None
     messages: Optional[List[WebhookMessage]] = None
@@ -68,7 +68,7 @@ class WebhookValue(BaseModel):
 
 
 class WebhookChange(BaseModel):
-    field: Literal["messages"]
+    field: str  # Usually "messages" but can be other values
     value: WebhookValue
 
 
@@ -78,12 +78,13 @@ class WebhookEntry(BaseModel):
 
 
 class WebhookPayload(BaseModel):
-    object: Literal["whatsapp_business_account"]
+    object: str  # Usually "whatsapp_business_account"
     entry: List[WebhookEntry]
 
     class Config:
         # Allow field aliases (for 'from' keyword)
-        validate_by_name = True
+        populate_by_name = True  # Updated for Pydantic v2
+        extra = "allow"  # Allow extra fields from WhatsApp
 
 
 class ProcessMessageResult(BaseModel):

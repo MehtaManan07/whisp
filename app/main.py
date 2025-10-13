@@ -1,3 +1,5 @@
+import logging
+import sys
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.error_handler import global_exception_handler
@@ -7,6 +9,20 @@ from app.modules.expenses.controller import router as expenses_router
 from app.modules.categories.controller import router as categories_router
 from app.modules.users.controller import router as users_router
 from app.modules.reminders.controller import router as reminders_router
+
+# Configure logging to output to console
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
+# Set logger for your app
+logger = logging.getLogger(__name__)
+logger.info("🚀 Starting Whisp API...")
 
 app = FastAPI(
     title="Whisp API",

@@ -70,24 +70,27 @@ class UsersService:
         return list(result.scalars().all())
 
     async def update_user(self, db: AsyncSession, user_id: int, update_data: UpdateUserDto) -> Optional[User]:
-        """Update user by ID"""
-        # Check if user exists
-        user = await self.get_user_by_id(db, user_id)
-        if not user:
-            return None
-
+        """Update user by ID - Optimized to use 1 query instead of 3"""
         # Update only provided fields
         update_dict = update_data.model_dump(exclude_unset=True)
         if not update_dict:
-            return user  # No changes
+            # If no updates, just fetch and return
+            return await self.get_user_by_id(db, user_id)
 
-        await db.execute(
-            update(User).where(User.id == user_id).values(**update_dict)
+        # Fetch and update in same transaction using RETURNING clause
+        # This is more efficient than separate fetch-update-fetch
+        result = await db.execute(
+            update(User)
+            .where(User.id == user_id)
+            .values(**update_dict)
+            .returning(User)
         )
-        await db.commit()
+        updated_user = result.scalar_one_or_none()
         
-        # Return updated user
-        return await self.get_user_by_id(db, user_id)
+        if updated_user:
+            await db.commit()
+        
+        return updated_user
 
     async def delete_user(self, db: AsyncSession, user_id: int) -> bool:
         """Delete user by ID"""

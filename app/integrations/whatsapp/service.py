@@ -1,5 +1,6 @@
 import httpx
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from fastapi import HTTPException, status
@@ -52,13 +53,28 @@ class WhatsAppService:
             return
 
         for message in messages:
+            # Start timing for end-to-end latency measurement
+            start_time = time.time()
+            
             from_number = message.from_
             message_type = message.type
             context = message.context
             timestamp = message.timestamp
+            message_text = message.text.body if message.text else None
 
-            # Ignore unsupported or system-level messages
-            if not from_number or message_type == "image":
+            # Skip messages without sender
+            if not from_number:
+                logger.warning(f"Skipping message without sender: {message.id}")
+                continue
+            
+            # Only process text messages, skip others gracefully
+            if message_type != "text":
+                logger.info(f"Skipping non-text message type '{message_type}' from {from_number}")
+                continue
+            
+            # Skip messages without text content
+            if not message_text:
+                logger.warning(f"Skipping text message without body from {from_number}")
                 continue
 
             # Freshness check
@@ -73,6 +89,9 @@ class WhatsAppService:
                     logger.info(f"Ignoring old message from {from_number} (age: {age})")
                     continue
 
+            # Log incoming message
+            logger.info(f"📨 Incoming WhatsApp message from {from_number}: '{message_text}'")
+
             response = await self.orchestrator.handle_new_message(
                 payload=HandleMessagePayload(
                     **{"from": from_number},
@@ -83,6 +102,20 @@ class WhatsAppService:
             )
 
             await self._send_bot_responses(response, from_number)
+            
+            # Calculate and log end-to-end latency
+            end_time = time.time()
+            latency_ms = (end_time - start_time) * 1000
+            
+            # Truncate message for logging
+            display_text = message_text or "(no text)"
+            if len(display_text) > 50:
+                display_text = display_text[:50] + "..."
+            
+            logger.info(
+                f"⚡ WhatsApp E2E Latency: {latency_ms:.2f}ms | "
+                f"User: {from_number} | Message: '{display_text}'"
+            )
 
     async def send_text(
         self, to: str, text: str, preview_url: bool = True
@@ -143,14 +176,21 @@ class WhatsAppService:
     ) -> None:
         """Send bot responses to user"""
         if not response or not response.messages:
+            logger.warning(f"No response to send to {recipient}")
             return
 
         # Send messages for both success and error responses
-        for msg in response.messages:
+        message_count = len(response.messages)
+        logger.info(f"📤 Sending {message_count} message(s) to {recipient}")
+        
+        for idx, msg in enumerate(response.messages, 1):
             try:
+                send_start = time.time()
                 await self.send_text(recipient, msg)
+                send_time = (time.time() - send_start) * 1000
+                logger.debug(f"   Message {idx}/{message_count} sent in {send_time:.2f}ms")
             except Exception as e:
-                logger.error(f"Failed to send error message to user {recipient}: {str(e)}")
+                logger.error(f"Failed to send message {idx}/{message_count} to user {recipient}: {str(e)}")
                 # Don't re-raise here to avoid infinite error loops
 
 
