@@ -15,6 +15,8 @@ class Config(BaseSettings):
     # Redis Configuration
     redis_url: str = Field(default="", alias="UPSTASH_REDIS_REST_URL")
     redis_token: str = Field(default="", alias="UPSTASH_REDIS_REST_TOKEN")
+    redis_host: str = Field(default="", alias="UPSTASH_REDIS_HOST")
+    redis_port: int = Field(default=0, alias="UPSTASH_REDIS_PORT")
 
     # LLM (Language Model) Configuration
     groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
@@ -25,6 +27,7 @@ class Config(BaseSettings):
         default="deepseek/deepseek-chat-v3-0324:free", alias="OPEN_ROUTER_MODEL_NAME"
     )
     is_production: bool = os.getenv("ENVIRONMENT", "development").lower() == "production"
+    
     
     
 

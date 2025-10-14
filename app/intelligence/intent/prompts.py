@@ -6,6 +6,9 @@ INTENT_PATTERNS = {
     # More flexible pattern that handles both orders
     r"(\b(spent|paid|bought|cost|purchase|expense|bill)\b.*\d+|\d+.*\b(spent|paid|bought|cost|purchase|expense|bill)\b)": "LOG_EXPENSE",
     r"\b(spent|paid|bought|cost|purchase|expense|bill)\b.*\d+": "LOG_EXPENSE",
+    # Reminder actions - check FIRST (most specific)
+    r"\b(done|completed?|finished|mark\s+complete)\b": "COMPLETE_REMINDER",
+    r"\bsnooze\s*(\d+\s*(h|hour|hours?|m|min|minutes?))?\b": "SNOOZE_REMINDER",
     # Reminders - check BEFORE general queries (more specific patterns first)
     r"\b(show|list|view|display|get|check|see)\b.*(my\s+)?reminders?\b": "VIEW_REMINDERS",
     r"\breminders?\b.*(show|list|view|display)": "VIEW_REMINDERS",

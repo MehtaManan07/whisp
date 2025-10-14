@@ -29,6 +29,7 @@ class MessageOrchestrator:
         category_classifier: CategoryClassifier,
     ):
         self.logger = logger
+        logger.info("Initializing MessageOrchestrator")
         self.users_service = users_service
         self.intent_classifier = intent_classifier
         self.llm_service = llm_service
@@ -184,4 +185,3 @@ class MessageOrchestrator:
         if not payload.message.text:
             return None
         return payload.message.text.body.strip().lower()
-
