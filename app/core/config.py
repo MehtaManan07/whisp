@@ -11,6 +11,8 @@ class Config(BaseSettings):
     wa_verify_token: str = Field(default="", alias="WA_VERIFY_TOKEN")
     wa_access_token: str = Field(default="", alias="WA_ACCESS_TOKEN")
     wa_phone_number_id: str = Field(default="", alias="WA_PHONE_NUMBER_ID")
+    wa_app_id: str = Field(default="", alias="WA_APP_ID")
+    wa_app_secret: str = Field(default="", alias="WA_APP_SECRET")
     
     # Redis Configuration
     redis_url: str = Field(default="", alias="UPSTASH_REDIS_REST_URL")
