@@ -6,6 +6,7 @@ from typing import Optional, List
 from app.core.db import User
 from app.modules.users.dto import CreateUserDto, UpdateUserDto, UserResponseDto
 from app.modules.users.types import FindOrCreateResult
+from app.utils.timezone_detection import detect_timezone_from_phone
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ class UsersService:
     async def find_or_create(
         self, db: AsyncSession, user_data: CreateUserDto
     ) -> FindOrCreateResult:
-        """Find existing user or create new one"""
+        """Find existing user or create new one with automatic timezone detection"""
         # Try to find existing user
         result = await db.execute(select(User).where(User.wa_id == user_data.wa_id))
         user = result.scalar_one_or_none()
@@ -25,11 +26,18 @@ class UsersService:
         if user:
             return {"user": user, "is_existing_user": True}
 
+        # Detect timezone from phone number
+        detected_timezone = "UTC"
+        if user_data.phone_number:
+            detected_timezone = detect_timezone_from_phone(user_data.phone_number)
+            self.logger.info(f"Detected timezone {detected_timezone} for phone {user_data.phone_number}")
+
         # Create new user
         new_user = User(
             wa_id=user_data.wa_id,
             name=user_data.name,
             phone_number=user_data.phone_number,
+            timezone=detected_timezone,
             meta=user_data.meta,
             streak=0,
         )
@@ -99,6 +107,15 @@ class UsersService:
         await db.delete(user)
         await db.commit()
         return True
+
+    async def update_user_timezone(self, db: AsyncSession, user_id: int, timezone: str) -> Optional[User]:
+        """Update user's timezone"""
+        update_data = UpdateUserDto(timezone=timezone)
+        return await self.update_user(db, user_id, update_data)
+
+    def get_user_timezone(self, user: User) -> str:
+        """Get user's timezone, with fallback to UTC"""
+        return user.timezone if user and user.timezone else "UTC"
 
 
 # Global service instance

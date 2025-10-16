@@ -8,18 +8,20 @@ from app.intelligence.intent.types import (
 )
 from app.modules.expenses.dto import CreateExpenseModel, GetAllExpensesModel
 from app.modules.expenses.service import ExpensesService
+from app.modules.users.service import UsersService
 
 
 class ExpenseHandlers(BaseHandlers):
     def __init__(self):
         super().__init__()
         self.service = ExpensesService()
+        self.users_service = UsersService()
 
     @intent_handler(IntentType.LOG_EXPENSE)
     async def log_expense(
         self, classified_result: CLASSIFIED_RESULT, user_id: int, db: AsyncSession
     ) -> str:
-        """Handle log expense intent."""
+        """Handle log expense intent with timezone awareness."""
         dto_instance, intent = classified_result
         if not dto_instance:
             return "I couldn't understand the expense details. Please provide the amount and category (e.g., 'I spent ₹500 on groceries')."
@@ -28,7 +30,11 @@ class ExpenseHandlers(BaseHandlers):
         if not dto_instance.user_id:
             dto_instance.user_id = user_id
         
-        await self.service.create_expense(db=db, data=dto_instance)
+        # Get user timezone
+        user = await self.users_service.get_user_by_id(db, user_id)
+        user_timezone = self.users_service.get_user_timezone(user) if user else "UTC"
+        
+        await self.service.create_expense(db=db, data=dto_instance, user_timezone=user_timezone)
         
         # Create a meaningful confirmation message
         amount_str = f"₹{dto_instance.amount:,.2f}"
@@ -50,7 +56,7 @@ class ExpenseHandlers(BaseHandlers):
     async def view_expenses(
         self, classified_result: CLASSIFIED_RESULT, user_id: int, db: AsyncSession
     ) -> str:
-        """Handle view expenses intent."""
+        """Handle view expenses intent with timezone awareness."""
         dto_instance, intent = classified_result
         if not dto_instance:
             return "I couldn't understand what expenses you want to see. Please try again with more details."
@@ -59,7 +65,11 @@ class ExpenseHandlers(BaseHandlers):
         if not dto_instance.user_id:
             dto_instance.user_id = user_id
         
-        expenses = await self.service.get_expenses(db=db, data=dto_instance)
+        # Get user timezone
+        user = await self.users_service.get_user_by_id(db, user_id)
+        user_timezone = self.users_service.get_user_timezone(user) if user else "UTC"
+        
+        expenses = await self.service.get_expenses(db=db, data=dto_instance, user_timezone=user_timezone)
         
         # Handle case where no expenses found
         if not expenses:
@@ -85,8 +95,8 @@ class ExpenseHandlers(BaseHandlers):
             "📝 Your expenses:"
         ]
         
-        # Add each expense as a human-readable message
+        # Add each expense as a human-readable message (with timezone-aware times)
         for expense in expenses:
-            response_parts.append(f"• {expense.to_human_message()}")
+            response_parts.append(f"• {expense.to_human_message(user_timezone)}")
         
         return "\n".join(response_parts)

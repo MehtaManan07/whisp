@@ -15,7 +15,7 @@ from app.modules.expenses.dto import (
 from app.modules.categories.service import CategoriesService
 import logging
 
-from app.utils.datetime import utc_now
+from app.utils.datetime import utc_now, to_utc
 from sqlalchemy import func
 
 logger = logging.getLogger(__name__)
@@ -27,11 +27,29 @@ class ExpensesService:
         self.categories_service = CategoriesService()
 
     async def get_expenses(
-        self, db: AsyncSession, data: GetAllExpensesModel
+        self, db: AsyncSession, data: GetAllExpensesModel, user_timezone: str = "UTC"
     ) -> list[ExpenseResponse] | str:
-        # Parse and validate dates only once
-        start_date = dateparser.parse(data.start_date) if data.start_date else None
-        end_date = dateparser.parse(data.end_date) if data.end_date else None
+        """Get expenses with timezone-aware date parsing.
+        
+        Args:
+            db: Database session
+            data: Query parameters
+            user_timezone: User's IANA timezone for date parsing
+        """
+        # Parse and validate dates in user's timezone, then convert to UTC
+        # dateparser returns naive datetimes, so we need to localize them
+        start_date = None
+        end_date = None
+        
+        if data.start_date:
+            parsed = dateparser.parse(data.start_date, settings={'TIMEZONE': user_timezone, 'RETURN_AS_TIMEZONE_AWARE': True})
+            if parsed:
+                start_date = parsed.astimezone(utc_now().tzinfo)
+        
+        if data.end_date:
+            parsed = dateparser.parse(data.end_date, settings={'TIMEZONE': user_timezone, 'RETURN_AS_TIMEZONE_AWARE': True})
+            if parsed:
+                end_date = parsed.astimezone(utc_now().tzinfo)
 
         if start_date and end_date and start_date >= end_date:
             end_date = start_date
@@ -111,8 +129,14 @@ class ExpensesService:
             agg_result = result.scalar()
             return str(agg_result) if agg_result is not None else "0"
 
-    async def create_expense(self, db: AsyncSession, data: CreateExpenseModel) -> None:
-        """Create a new expense."""
+    async def create_expense(self, db: AsyncSession, data: CreateExpenseModel, user_timezone: str = "UTC") -> None:
+        """Create a new expense with timezone-aware timestamp handling.
+        
+        Args:
+            db: Database session
+            data: Expense data
+            user_timezone: User's IANA timezone for timestamp interpretation
+        """
         try:
             # Handle category and subcategory creation
             category_data = await self.categories_service.find_or_create_with_parent(
@@ -120,6 +144,15 @@ class ExpensesService:
                 category_name=data.category_name or "",
                 subcategory_name=data.subcategory_name,
             )
+
+            # If timestamp is provided and naive, assume it's in user's timezone
+            timestamp = data.timestamp
+            if timestamp and timestamp.tzinfo is None:
+                # Naive timestamp - localize to user's timezone then convert to UTC
+                timestamp = to_utc(timestamp, user_timezone)
+            elif timestamp is None:
+                # No timestamp provided - use current time
+                timestamp = utc_now()
 
             new_expense = Expense(
                 user_id=data.user_id,
@@ -130,7 +163,7 @@ class ExpensesService:
                 note=data.note,
                 source_message_id=data.source_message_id,
                 vendor=data.vendor.lower() if data.vendor else None,
-                timestamp=data.timestamp,
+                timestamp=timestamp,
             )
 
             db.add(new_expense)

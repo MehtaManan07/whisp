@@ -31,6 +31,13 @@ class User(BaseModel):
 
     phone_number: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
+    timezone: Mapped[Optional[str]] = mapped_column(
+        String,
+        default="UTC",
+        nullable=True,
+        comment="User's timezone (IANA timezone name, e.g., 'Asia/Kolkata')",
+    )
+
     last_active: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="For engagement reminders"
     )

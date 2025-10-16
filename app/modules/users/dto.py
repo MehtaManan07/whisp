@@ -13,6 +13,7 @@ class CreateUserDto(BaseModel):
 class UpdateUserDto(BaseModel):
     name: Optional[str] = None
     phone_number: Optional[str] = None
+    timezone: Optional[str] = None
     meta: Optional[Dict[str, Any]] = None
 
 
@@ -21,6 +22,7 @@ class UserResponseDto(BaseModel):
     wa_id: str
     name: Optional[str] = None
     phone_number: Optional[str] = None
+    timezone: Optional[str] = "UTC"
     last_active: Optional[datetime] = None
     streak: int
     meta: Optional[Dict[str, Any]] = None

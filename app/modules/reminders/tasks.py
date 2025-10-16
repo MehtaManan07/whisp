@@ -60,18 +60,21 @@ async def _process_due_reminders():
                 try:
                     # Get user phone (assuming you have this field)
                     user = reminder.user
-                    if not user or not user.phone:
+                    if not user or not user.phone_number:
                         continue
+
+                    # Get user timezone
+                    user_timezone = user.timezone if user.timezone else "UTC"
 
                     # Send notification
                     message = f"🔔 Reminder: {reminder.title}"
                     if reminder.amount:
                         message += f"\nAmount: ₹{reminder.amount}"
 
-                    await whatsapp_service.send_text(user.phone, message)
+                    await whatsapp_service.send_text(user.phone_number, message)
 
-                    # Mark as processed
-                    await service.process_triggered_reminder(db, reminder)
+                    # Mark as processed with timezone awareness
+                    await service.process_triggered_reminder(db, reminder, user_timezone)
 
                 except Exception as e:
                     logger.error(f"Failed to process reminder {reminder.id}: {e}")

@@ -56,10 +56,15 @@ class ExpenseResponse(BaseModel):
 
     category_name: Optional[str]  # <-- new field, from related model
 
-    def to_human_message(self) -> str:
+    def to_human_message(self, user_timezone: str = "UTC") -> str:
         """
         Returns a human-readable, natural language summary of the expense.
+        
+        Args:
+            user_timezone: User's IANA timezone for displaying times
         """
+        from app.utils.datetime import format_datetime_for_user
+        
         parts = []
 
         # Start with the main action
@@ -78,15 +83,15 @@ class ExpenseResponse(BaseModel):
         if self.note:
             parts.append(f'Note: "{self.note}"')
 
-        # Add date
+        # Add date (in user's timezone)
         if self.timestamp:
-            parts.append(f"on {self.timestamp.strftime('%B %d, %Y at %H:%M')}")
+            date_str = format_datetime_for_user(self.timestamp, user_timezone, '%B %d, %Y at %I:%M %p')
+            parts.append(f"on {date_str}")
 
         # Add deleted info if present
         if self.deleted_at:
-            parts.append(
-                f"(deleted on {self.deleted_at.strftime('%B %d, %Y at %H:%M')})"
-            )
+            deleted_str = format_datetime_for_user(self.deleted_at, user_timezone, '%B %d, %Y at %I:%M %p')
+            parts.append(f"(deleted on {deleted_str})")
 
         # # Add IDs for reference if needed
         # parts.append(f"[Expense ID: {self.id}]")

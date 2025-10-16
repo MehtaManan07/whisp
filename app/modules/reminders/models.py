@@ -67,9 +67,12 @@ class Reminder(BaseModel):
         """Check if reminder has recurring schedule."""
         return self.recurrence_type != "once"
 
-    def to_human_message(self) -> str:
+    def to_human_message(self, user_timezone: str = "UTC") -> str:
         """
         Returns a human-readable, natural language summary of the reminder.
+        
+        Args:
+            user_timezone: User's IANA timezone for displaying times
         """
         parts = []
 
@@ -93,9 +96,9 @@ class Reminder(BaseModel):
         if self.description:
             parts.append(f"📋 {self.description}")
 
-        # Add next trigger time
+        # Add next trigger time (in user's timezone)
         from app.utils.datetime import format_relative_time
-        trigger_str = format_relative_time(self.next_trigger_at)
+        trigger_str = format_relative_time(self.next_trigger_at, user_timezone)
         parts.append(f"⏰ Next: {trigger_str}")
 
         # Add recurrence info
