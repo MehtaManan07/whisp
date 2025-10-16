@@ -19,7 +19,7 @@ if [ -z "$WA_APP_ID" ] || [ -z "$WA_APP_SECRET" ] || [ -z "$WA_VERIFY_TOKEN" ]; 
 fi
 
 if [ "$ENV" = "dev" ]; then
-  WEBHOOK_URL="https://khgkp-106-221-77-100.a.free.pinggy.link"
+  WEBHOOK_URL="https://zkahk-106-221-64-203.a.free.pinggy.link"
 elif [ "$ENV" = "prod" ]; then
   WEBHOOK_URL="https://whisp-ai.duckdns.org"
 else
