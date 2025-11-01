@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# ⚠️  OUTDATED - EC2 ONLY - DO NOT USE FOR LEAPCELL
 # deploy-app-prod.sh - Deploy FastAPI app for production (EC2)
 # Usage: ./deploy-app-prod.sh
 

@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# ⚠️  OUTDATED - EC2 ONLY - DO NOT USE FOR LEAPCELL
 # deploy-celery-prod.sh - Deploy Celery services for production (EC2)
 # Usage: ./deploy-celery-prod.sh
 

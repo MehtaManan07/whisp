@@ -19,9 +19,9 @@ if [ -z "$WA_APP_ID" ] || [ -z "$WA_APP_SECRET" ] || [ -z "$WA_VERIFY_TOKEN" ]; 
 fi
 
 if [ "$ENV" = "dev" ]; then
-  WEBHOOK_URL="https://zkahk-106-221-64-203.a.free.pinggy.link"
+  WEBHOOK_URL="https://kncak-106-194-52-106.a.free.pinggy.link"
 elif [ "$ENV" = "prod" ]; then
-  WEBHOOK_URL="https://whisp-ai.duckdns.org"
+  WEBHOOK_URL="https://whisp-manan4276-eovlx63b.leapcell.dev"
 else
   echo "Usage: $0 [dev|prod]"
   exit 1

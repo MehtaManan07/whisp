@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# ⚠️  OUTDATED - EC2 ONLY - DO NOT USE FOR LEAPCELL
 # deploy.sh
 # Usage: ./deploy.sh
 
