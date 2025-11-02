@@ -1,9 +1,10 @@
 # app/modules/reminders/service.py
 
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import Any, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, select
+import logging
 
 from app.modules.reminders.models import Reminder
 from app.modules.reminders.types import RecurrenceType, RecurrenceConfig
@@ -15,10 +16,18 @@ from app.modules.reminders.dto import (
 from app.core.exceptions import NotFoundError, ValidationError
 from app.modules.reminders.utils import RemindersUtils
 from app.utils.datetime import utc_now, parse_time_in_user_tz, to_user_timezone, to_utc
+from app.core.scheduler import Scheduler
+from app.core.config import config
+
+logger = logging.getLogger(__name__)
 
 
 class ReminderService:
     """Service for managing reminders."""
+
+    def __init__(self):
+        self.scheduler = Scheduler()
+        self.logger = logger
 
     async def create_reminder(
         self,
@@ -66,6 +75,25 @@ class ReminderService:
             db.add(reminder)
             await db.commit()
             await db.refresh(reminder)
+
+            # Schedule the reminder with QStash if scheduler is provided
+            try:
+                schedule_id = await self._schedule_reminder(
+                    reminder=reminder,
+                    user_timezone=user_timezone,
+                )
+                reminder.schedule_id = schedule_id
+                await db.commit()
+                await db.refresh(reminder)
+                logger.info(
+                    f"Scheduled reminder {reminder.id} with QStash (schedule_id={schedule_id})"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to schedule reminder {reminder.id} with QStash: {e}"
+                )
+                # Don't fail the entire operation if scheduling fails
+                # The reminder is still created in the database
 
             return reminder
 
@@ -132,6 +160,7 @@ class ReminderService:
             user_timezone: User's IANA timezone (e.g., 'Asia/Kolkata')
         """
         reminder = await self.get_reminder(db, reminder_id, user_id)
+        old_schedule_id = reminder.schedule_id
 
         try:
             # Update simple fields efficiently using model_dump
@@ -142,6 +171,7 @@ class ReminderService:
                 setattr(reminder, field, value)
 
             # Update recurrence if changed
+            recurrence_changed = False
             if data.recurrence_type is not None or data.recurrence_config is not None:
                 recurrence_type = data.recurrence_type or RecurrenceType(
                     reminder.recurrence_type
@@ -166,9 +196,36 @@ class ReminderService:
                     ),
                     user_timezone=user_timezone,
                 )
+                recurrence_changed = True
 
             await db.commit()
             await db.refresh(reminder)
+
+            # Reschedule if scheduler provided and recurrence changed or is_active changed
+            if recurrence_changed or data.is_active is not None:
+                try:
+                    # Cancel old schedule if exists
+                    if old_schedule_id:
+                        await self._cancel_schedule(old_schedule_id)
+
+                    # Schedule new reminder if active
+                    if reminder.is_active:
+                        schedule_id = await self._schedule_reminder(
+                            reminder=reminder,
+                            user_timezone=user_timezone,
+                        )
+                        reminder.schedule_id = schedule_id
+                        await db.commit()
+                        await db.refresh(reminder)
+                        logger.info(
+                            f"Rescheduled reminder {reminder.id} (schedule_id={schedule_id})"
+                        )
+                    else:
+                        reminder.schedule_id = None
+                        await db.commit()
+                        await db.refresh(reminder)
+                except Exception as e:
+                    logger.error(f"Failed to reschedule reminder {reminder.id}: {e}")
 
             return reminder
 
@@ -177,14 +234,38 @@ class ReminderService:
             raise
 
     async def delete_reminder(
-        self, db: AsyncSession, reminder_id: int, user_id: int
+        self,
+        db: AsyncSession,
+        reminder_id: int,
+        user_id: int,
     ) -> None:
-        """Soft delete a reminder by marking deleted_at."""
+        """Soft delete a reminder by marking deleted_at and canceling schedule.
+
+        Args:
+            db: Database session
+            reminder_id: Reminder ID
+            user_id: User ID
+        """
         reminder = await self.get_reminder(db, reminder_id, user_id)
+        schedule_id = reminder.schedule_id
 
         try:
             reminder.deleted_at = utc_now()
+            reminder.is_active = False
             await db.commit()
+
+            # Cancel the schedule if exists
+            if schedule_id:
+                try:
+                    await self._cancel_schedule(schedule_id)
+                    logger.info(
+                        f"Canceled schedule {schedule_id} for deleted reminder {reminder_id}"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Failed to cancel schedule for reminder {reminder_id}: {e}"
+                    )
+
         except Exception as e:
             await db.rollback()
             raise
@@ -324,9 +405,80 @@ class ReminderService:
         except Exception as e:
             await db.rollback()
             raise
+        
+    async def trigger_reminder_webhook(
+        self,
+        db: AsyncSession,
+        payload: dict[str, Any],
+        user_service,
+        whatsapp_service,
+    ):
+        """
+        Webhook endpoint called by QStash when a reminder is due.
+        This is an internal endpoint called by the scheduler.
+        
+        Dependencies are injected to avoid circular imports between
+        dependencies.py and service modules.
+        
+        Args:
+            db: Database session
+            payload: Webhook payload containing reminder_id and user_id
+            user_service: Injected user service instance
+            whatsapp_service: Injected WhatsApp service instance
+        """
+        try:
+            reminder_id = payload.get("reminder_id")
+            user_id = payload.get("user_id")
+
+            if not reminder_id or not user_id:
+                logger.error(f"Webhook called without reminder_id or user_id: {payload}")
+                return {"status": "error", "message": "Missing reminder_id or user_id"}
+
+            # Get the reminder using the service method
+            reminder = await self.get_reminder(db, reminder_id, user_id)
+            if not reminder:
+                logger.error(f"Reminder {reminder_id} not found")
+                return {"status": "error", "message": "Reminder not found"}
+
+            # Get the user with phone number
+            user = await user_service.get_user_by_id(db, user_id)
+            if not user or not user.phone_number:
+                logger.error(f"User {user_id} not found or has no phone number")
+                return {"status": "error", "message": "User not found or no phone number"}
+
+            # Get user timezone
+            user_timezone = user_service.get_user_timezone(user) if user else "UTC"
+
+            # Send WhatsApp notification
+            try:
+                message = f"🔔 Reminder: {reminder.title}"
+                if reminder.amount:
+                    message += f"\nAmount: ₹{reminder.amount:,.2f}"
+                if reminder.description:
+                    message += f"\n\n{reminder.description}"
+
+                await whatsapp_service.send_text(user.phone_number, message)
+                logger.info(f"Sent reminder {reminder_id} to user {user.phone_number}")
+            except Exception as e:
+                logger.error(
+                    f"Failed to send WhatsApp notification for reminder {reminder_id}: {e}"
+                )
+
+            # Process the reminder (mark as triggered, schedule next if recurring)
+            await self.process_triggered_reminder(db, reminder, user_timezone)
+
+            return {"status": "success", "reminder_id": reminder_id}
+
+        except Exception as e:
+            logger.error(f"Error processing reminder webhook: {e}")
+            return {"status": "error", "message": str(e)}
+
 
     async def process_triggered_reminder(
-        self, db: AsyncSession, reminder: Reminder, user_timezone: str = "UTC"
+        self,
+        db: AsyncSession,
+        reminder: Reminder,
+        user_timezone: str = "UTC",
     ) -> None:
         """Process a reminder after it has been triggered with timezone awareness.
 
@@ -350,9 +502,25 @@ class ReminderService:
                     ),
                     user_timezone=user_timezone,
                 )
+
+                # Reschedule for the next occurrence
+                try:
+                    schedule_id = await self._schedule_reminder(
+                        reminder=reminder,
+                        user_timezone=user_timezone,
+                    )
+                    reminder.schedule_id = schedule_id
+                    logger.info(
+                        f"Rescheduled recurring reminder {reminder.id} (schedule_id={schedule_id})"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Failed to reschedule recurring reminder {reminder.id}: {e}"
+                    )
             else:
                 # One-time reminder - deactivate
                 reminder.is_active = False
+                reminder.schedule_id = None
 
             await db.commit()
 
@@ -415,3 +583,52 @@ class ReminderService:
 
         # Convert back to UTC for storage
         return to_utc(next_trigger_local, user_timezone)
+
+    async def _schedule_reminder(
+        self,
+        reminder: Reminder,
+        user_timezone: str = "UTC",
+    ) -> str:
+        """Schedule a reminder with QStash.
+
+        Args:
+            scheduler: Scheduler instance
+            reminder: Reminder object
+            user_timezone: User's timezone
+
+        Returns:
+            QStash schedule ID
+        """
+        webhook_url = f"{config.app_base_url}/reminders/webhook/trigger"
+        payload = {
+            "reminder_id": reminder.id,
+            "user_id": reminder.user_id,
+        }
+
+        # Schedule at the next trigger time
+        schedule_id = await self.scheduler.schedule_at(
+            url=webhook_url,
+            payload=payload,
+            at=reminder.next_trigger_at,
+            retries=3,
+        )
+
+        return schedule_id
+
+    async def _cancel_schedule(self, schedule_id: str) -> None:
+        """Cancel a scheduled reminder.
+
+        Args:
+            scheduler: Scheduler instance
+            schedule_id: QStash schedule/message ID to cancel
+        """
+        try:
+            # Try to cancel as a one-time message first
+            await self.scheduler.cancel_message(schedule_id)
+        except Exception as e:
+            # If that fails, might be a recurring schedule (though we use schedule_at)
+            logger.debug(f"Failed to cancel as message, trying as schedule: {e}")
+            try:
+                await self.scheduler.delete_recurring(schedule_id)
+            except Exception as e2:
+                logger.warning(f"Failed to cancel schedule {schedule_id}: {e2}")

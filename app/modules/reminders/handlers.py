@@ -15,9 +15,12 @@ class ReminderHandlers(BaseHandlers):
 
     @intent_handler(IntentType.SET_REMINDER)
     async def set_reminder(
-        self, classified_result: CLASSIFIED_RESULT, user_id: int, db: AsyncSession
+        self, 
+        classified_result: CLASSIFIED_RESULT, 
+        user_id: int, 
+        db: AsyncSession,
     ) -> str:
-        """Handle set reminder intent with timezone awareness."""
+        """Handle set reminder intent with timezone awareness and scheduling."""
         dto_instance, intent = classified_result
         if not dto_instance:
             return "I couldn't understand the reminder details. Please provide the reminder details."
@@ -28,7 +31,12 @@ class ReminderHandlers(BaseHandlers):
         user = await self.users_service.get_user_by_id(db, user_id)
         user_timezone = self.users_service.get_user_timezone(user) if user else "UTC"
 
-        await self.service.create_reminder(db=db, user_id=user_id, data=dto_instance, user_timezone=user_timezone)
+        await self.service.create_reminder(
+            db=db, 
+            user_id=user_id, 
+            data=dto_instance, 
+            user_timezone=user_timezone,
+        )
 
         return "Reminder set successfully!"
 

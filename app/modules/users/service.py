@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from typing import Optional, List
 
-from app.core.db import User
+from app.modules.users.models import User
 from app.modules.users.dto import CreateUserDto, UpdateUserDto, UserResponseDto
 from app.modules.users.types import FindOrCreateResult
 from app.utils.timezone_detection import detect_timezone_from_phone

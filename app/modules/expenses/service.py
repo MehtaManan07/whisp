@@ -4,7 +4,8 @@ from sqlalchemy.orm import selectinload
 from typing import Dict, Any
 import dateparser
 
-from app.core.db import Expense, Category
+from app.modules.expenses.models import Expense
+from app.modules.categories.models import Category
 from app.core.exceptions import ExpenseNotFoundError, DatabaseError
 from app.modules.expenses.dto import (
     CreateExpenseModel,

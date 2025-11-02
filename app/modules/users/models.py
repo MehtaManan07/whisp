@@ -8,7 +8,7 @@ from typing import List, Optional, Dict, Any, TYPE_CHECKING
 from app.core.db.base import BaseModel
 
 if TYPE_CHECKING:
-    from app.core.db import Expense
+    from app.modules.expenses.models import Expense
     from app.modules.reminders.models import Reminder
 
 

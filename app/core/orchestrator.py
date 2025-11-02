@@ -10,7 +10,7 @@ from app.intelligence.extraction.extractor import extract_dto
 from app.intelligence.intent.classifier import IntentClassifier
 from app.intelligence.categorization.classifier import CategoryClassifier
 from app.modules.users.dto import CreateUserDto
-from app.core.db import User
+from app.modules.users.models import User
 import app.core.constants.whatsapp_responses as message_constants
 from app.intelligence.intent.types import IntentType
 from app.modules.users.service import UsersService
@@ -114,7 +114,9 @@ class MessageOrchestrator:
         classified_result = (extracted_dto, intent)
 
         response = await route_intent(
-            classified_result=classified_result, user_id=user.id, db=db
+            classified_result=classified_result,
+            user_id=user.id,
+            db=db,
         )
 
         # Default fallback for free text
