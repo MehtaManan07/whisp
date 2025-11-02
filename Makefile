@@ -8,7 +8,6 @@ help:
 	@echo "  make expose          - Expose the FastAPI server to the internet"
 	@echo "  make down            - Stop the FastAPI server"
 	@echo "  make module name='module_name' - Create a new module with standard structure"
-	@echo "  make celery          - Run Celery worker for scheduled tasks"
 
 
 # Configs
@@ -45,10 +44,6 @@ dbversion:
 clean:
 	find . -type d -name '__pycache__' -exec rm -r {} +
 	find . -type f -name '*.pyc' -delete
-
-# Run Celery worker for scheduled tasks
-celery:
-	celery -A app.celery_app worker --loglevel=info --pool=solo
 
 # Create a new module with standard structure: make module name="module_name"
 module:

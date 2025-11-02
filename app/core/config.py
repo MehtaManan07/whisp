@@ -19,6 +19,13 @@ class Config(BaseSettings):
     redis_token: str = Field(default="", alias="UPSTASH_REDIS_REST_TOKEN")
     redis_host: str = Field(default="", alias="UPSTASH_REDIS_HOST")
     redis_port: int = Field(default=0, alias="UPSTASH_REDIS_PORT")
+    
+    # QStash Configuration
+    qstash_url: str = Field(default="", alias="QSTASH_URL")
+    qstash_token: str = Field(default="", alias="QSTASH_TOKEN")
+    qstash_current_signing_key: str = Field(default="", alias="QSTASH_CURRENT_SIGNING_KEY")
+    qstash_next_signing_key: str = Field(default="", alias="QSTASH_NEXT_SIGNING_KEY")
+    app_base_url: str = Field(default="", alias="APP_BASE_URL")  # Your Leapcell app URL
 
     # LLM (Language Model) Configuration
     groq_api_key: str = Field(default="", alias="GROQ_API_KEY")

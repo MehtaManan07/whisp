@@ -9,7 +9,6 @@ from dotenv import load_dotenv
 
 # Import your models here so Alembic can detect them
 from app.core.db.base import Base
-from app.core.db import User, Category, Expense
 
 # Load environment variables from .env file
 load_dotenv()

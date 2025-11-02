@@ -89,3 +89,10 @@ class LLMServiceError(ExternalServiceError):
     
     def __init__(self, message: str):
         super().__init__("LLM Service", message)
+
+
+class SchedulerError(ExternalServiceError):
+    """Raised when scheduler operations fail."""
+    
+    def __init__(self, message: str):
+        super().__init__("Scheduler", message)
