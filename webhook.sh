@@ -1,6 +1,7 @@
 #!/bin/bash
 
 ENV=$1
+URL=$2
 
 # Load environment variables from .env file
 if [ ! -f .env ]; then
@@ -19,7 +20,7 @@ if [ -z "$WA_APP_ID" ] || [ -z "$WA_APP_SECRET" ] || [ -z "$WA_VERIFY_TOKEN" ]; 
 fi
 
 if [ "$ENV" = "dev" ]; then
-  WEBHOOK_URL="https://kncak-106-194-52-106.a.free.pinggy.link"
+  WEBHOOK_URL=$URL
 elif [ "$ENV" = "prod" ]; then
   WEBHOOK_URL="https://whisp-manan4276-eovlx63b.leapcell.dev"
 else

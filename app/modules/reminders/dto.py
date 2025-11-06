@@ -1,5 +1,3 @@
-# app/modules/reminders/dto.py
-
 from datetime import datetime
 from typing import Optional
 from decimal import Decimal
@@ -116,15 +114,15 @@ class CreateReminderDTO(BaseModel):
 class UpdateReminderDTO(BaseModel):
     """DTO for updating an existing reminder."""
 
-    title: Optional[str] = Field(None, min_length=1, max_length=200)
-    description: Optional[str] = None
-    amount: Optional[Decimal] = Field(None, ge=0)
-    category_id: Optional[int] = None
+    title: Optional[str] = Field(None, min_length=1, max_length=200, description="Updated reminder title")
+    description: Optional[str] = Field(None, description="Updated description or additional details")
+    amount: Optional[Decimal] = Field(None, ge=0, description="Updated amount for bill reminders")
+    category_id: Optional[int] = Field(None, description="Updated associated category ID")
 
-    recurrence_type: Optional[RecurrenceType] = None
-    recurrence_config: Optional[RecurrenceConfig] = None
+    recurrence_type: Optional[RecurrenceType] = Field(None, description="Updated recurrence pattern")
+    recurrence_config: Optional[RecurrenceConfig] = Field(None, description="Updated recurrence configuration")
 
-    is_active: Optional[bool] = None
+    is_active: Optional[bool] = Field(None, description="Whether the reminder is active")
 
     @field_validator("recurrence_config")
     @classmethod
@@ -164,7 +162,7 @@ class UpdateReminderDTO(BaseModel):
 class ListRemindersDTO(BaseModel):
     """DTO for listing reminders with optional filters."""
 
-    user_id: int
+    user_id: int = Field(..., description="ID of the user whose reminders to list")
     reminder_type: Optional[ReminderType] = Field(
         None, description="Filter by reminder type"
     )
@@ -186,24 +184,24 @@ class ListRemindersDTO(BaseModel):
 class ReminderResponseDTO(BaseModel):
     """DTO for reminder responses."""
 
-    id: int
-    user_id: int
-    reminder_type: ReminderType
-    title: str
-    description: Optional[str]
-    amount: Optional[Decimal]
-    category_id: Optional[int]
+    id: int = Field(..., description="Unique identifier for the reminder")
+    user_id: int = Field(..., description="ID of the user who owns this reminder")
+    reminder_type: ReminderType = Field(..., description="Type of reminder")
+    title: str = Field(..., description="Reminder title")
+    description: Optional[str] = Field(None, description="Additional details about the reminder")
+    amount: Optional[Decimal] = Field(None, description="Amount for bill reminders")
+    category_id: Optional[int] = Field(None, description="Associated category ID")
 
-    recurrence_type: RecurrenceType
-    recurrence_config: Optional[dict]
+    recurrence_type: RecurrenceType = Field(..., description="How often the reminder repeats")
+    recurrence_config: Optional[dict] = Field(None, description="Recurrence configuration details")
 
-    next_trigger_at: datetime
-    last_triggered_at: Optional[datetime]
+    next_trigger_at: datetime = Field(..., description="When the reminder will next trigger")
+    last_triggered_at: Optional[datetime] = Field(None, description="When the reminder was last triggered")
 
-    is_active: bool
+    is_active: bool = Field(..., description="Whether the reminder is currently active")
 
-    created_at: datetime
-    updated_at: Optional[datetime]
+    created_at: datetime = Field(..., description="When the reminder was created")
+    updated_at: Optional[datetime] = Field(None, description="When the reminder was last updated")
 
     class Config:
         from_attributes = True
@@ -247,9 +245,9 @@ class SnoozeReminderDTO(BaseModel):
 class ReminderListResponseDTO(BaseModel):
     """DTO for list of reminders."""
 
-    reminders: list[ReminderResponseDTO]
-    total: int
-    active_count: int
+    reminders: list[ReminderResponseDTO] = Field(..., description="List of reminder objects")
+    total: int = Field(..., description="Total number of reminders")
+    active_count: int = Field(..., description="Number of active reminders")
 
     class Config:
         json_schema_extra = {

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Path, Query, Body
+from fastapi import APIRouter, Path, Query, Body, Header, HTTPException, Depends
 from typing import List, Optional, Dict, Any
 from datetime import timedelta
 import logging
@@ -7,10 +7,10 @@ from app.core.dependencies import (
     DatabaseDep,
     ReminderServiceDep,
     UserServiceDep,
-    SchedulerDep,
     WhatsAppServiceDep,
 )
 from app.core.exceptions import ValidationError
+from app.core.config import config
 from app.modules.reminders.dto import (
     CreateReminderDTO,
     UpdateReminderDTO,
@@ -25,12 +25,45 @@ router = APIRouter(prefix="/reminders", tags=["reminders"])
 logger = logging.getLogger(__name__)
 
 
+def verify_process_token(x_process_token: str = Header(alias="x-process-token")):
+    """
+    Verify the process token from request headers to prevent unauthorized access.
+    
+    Args:
+        x_process_token: Token from x-process-token header
+        
+    Raises:
+        HTTPException: If token is missing or invalid
+    """
+    if not config.reminders_process_token:
+        logger.error("REMINDERS_PROCESS_TOKEN not configured in environment")
+        raise HTTPException(
+            status_code=500,
+            detail="Process token not configured"
+        )
+    
+    if not x_process_token:
+        logger.warning("Process endpoint called without token")
+        raise HTTPException(
+            status_code=401,
+            detail="Missing authentication token"
+        )
+    
+    if x_process_token != config.reminders_process_token:
+        logger.warning(f"Process endpoint called with invalid token")
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid authentication token"
+        )
+    
+    return True
+
+
 @router.post("/", response_model=ReminderResponseDTO, status_code=201)
 async def create_reminder(
     data: CreateReminderDTO,
     db: DatabaseDep,
     reminder_service: ReminderServiceDep,
-    scheduler: SchedulerDep,
     user_id: int = Query(..., description="User ID"),
 ):
     """Create a new reminder"""
@@ -88,7 +121,6 @@ async def update_reminder(
     reminder_id: int,
     db: DatabaseDep,
     reminder_service: ReminderServiceDep,
-    scheduler: SchedulerDep,
     user_id: int = Query(..., description="User ID"),
 ):
     """Update an existing reminder"""
@@ -104,7 +136,6 @@ async def delete_reminder(
     reminder_id: int,
     db: DatabaseDep,
     reminder_service: ReminderServiceDep,
-    scheduler: SchedulerDep,
     user_id: int = Query(..., description="User ID"),
 ):
     """Soft delete a reminder"""
@@ -188,24 +219,26 @@ async def fix_overdue_reminders(
     }
 
 
-@router.post("/webhook/trigger", status_code=200, include_in_schema=False)
-async def trigger_reminder_webhook(
+@router.post("/process", status_code=200, dependencies=[Depends(verify_process_token)])
+async def process_reminders(
     db: DatabaseDep,
     reminder_service: ReminderServiceDep,
     user_service: UserServiceDep,
     whatsapp_service: WhatsAppServiceDep,
-    payload: Dict[str, Any] = Body(...),
+    limit: int = Query(100, ge=1, le=500, description="Maximum number of reminders to process"),
 ):
     """
-    Webhook endpoint called by QStash when a reminder is due.
-    This is an internal endpoint called by the scheduler.
+    Process all due reminders by sending notifications and updating their state.
+    This endpoint is designed to be called by a cron job every 2 minutes.
+    
+    Requires authentication via X-Process-Token header to prevent unauthorized access.
     
     All dependencies are injected via FastAPI's dependency injection system
     to avoid circular imports.
     """
-    return await reminder_service.trigger_reminder_webhook(
+    return await reminder_service.process_reminders(
         db=db,
-        payload=payload,
         user_service=user_service,
         whatsapp_service=whatsapp_service,
+        limit=limit,
     )

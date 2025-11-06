@@ -42,7 +42,6 @@ class Reminder(BaseModel):
     # Scheduling
     next_trigger_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     last_triggered_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    schedule_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # QStash schedule ID for tracking
 
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)

@@ -175,6 +175,7 @@ class MessageOrchestrator:
                     wa_id=payload.contact.wa_id,
                     phone_number=payload.from_,
                     name=payload.contact.profile.get("name", ""),
+                    meta={"phone_number": payload.from_},
                 ),
             )
             return user_data["user"]

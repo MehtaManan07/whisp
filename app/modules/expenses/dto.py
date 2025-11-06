@@ -1,60 +1,59 @@
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, Literal
 
 
 class DeleteExpenseModel(BaseModel):
-    id: int
+    id: int = Field(..., description="Unique identifier of the expense to delete")
 
 
 class CreateExpenseModel(BaseModel):
-    user_id: int
-    category_name: Optional[str] = None
-    subcategory_name: Optional[str] = None
-    amount: float
-    note: Optional[str] = None
-    source_message_id: Optional[str] = None
-    vendor: Optional[str] = None
-    timestamp: Optional[datetime] = None
+    user_id: int = Field(..., description="ID of the user creating the expense")
+    category_name: Optional[str] = Field(None, description="Name of the category for this expense")
+    subcategory_name: Optional[str] = Field(None, description="Name of the subcategory for this expense")
+    amount: float = Field(..., description="Amount spent in the transaction")
+    note: Optional[str] = Field(None, description="Additional notes or details about the expense")
+    source_message_id: Optional[str] = Field(None, description="ID of the source message (e.g., from WhatsApp)")
+    vendor: Optional[str] = Field(None, description="Name of the vendor or merchant")
+    timestamp: Optional[datetime] = Field(None, description="When the expense occurred")
 
 
 class GetAllExpensesModel(BaseModel):
-    user_id: int
-    category_name: Optional[str] = None
-    vendor: Optional[str] = None
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
-    subcategory_name: Optional[str] = None
-    start_amount: Optional[float] = None
-    end_amount: Optional[float] = None
-    aggregation_type: Optional[Literal["sum", "count", "avg", "min", "max"]] = (
-        None  # could have declared a type for this but swagger was not liking it
+    user_id: int = Field(..., description="ID of the user")
+    category_name: Optional[str] = Field(None, description="Filter by category name")
+    vendor: Optional[str] = Field(None, description="Filter by vendor name")
+    start_date: Optional[str] = Field(None, description="Filter expenses from this date (ISO format)")
+    end_date: Optional[str] = Field(None, description="Filter expenses until this date (ISO format)")
+    subcategory_name: Optional[str] = Field(None, description="Filter by subcategory name")
+    start_amount: Optional[float] = Field(None, description="Filter expenses with minimum amount")
+    end_amount: Optional[float] = Field(None, description="Filter expenses with maximum amount")
+    aggregation_type: Optional[Literal["sum", "count", "avg", "min", "max"]] = Field(
+        None, description="Type of aggregation to apply (sum, count, avg, min, max)"
     )
 
 
 class GetExpensesByCategoryModel(BaseModel):
-    user_id: int
-    category_id: int
+    user_id: int = Field(..., description="ID of the user")
+    category_id: int = Field(..., description="ID of the category to fetch expenses for")
 
 
 ExpenseAggregationType = Literal["sum", "count", "avg", "min", "max"]
 
 
 class ExpenseResponse(BaseModel):
-    id: int
-    user_id: int
-    category_id: Optional[int]
-    amount: float
-    note: Optional[str]
-    vendor: Optional[str]
-    source_message_id: Optional[str]
-    timestamp: datetime
-    created_at: datetime
-    updated_at: Optional[datetime]
-    deleted_at: Optional[datetime]
-
-    category_name: Optional[str]  # <-- new field, from related model
+    id: int = Field(..., description="Unique identifier for the expense")
+    user_id: int = Field(..., description="ID of the user who owns this expense")
+    category_id: Optional[int] = Field(None, description="Associated category ID")
+    amount: float = Field(..., description="Amount of the expense")
+    note: Optional[str] = Field(None, description="Additional notes about the expense")
+    vendor: Optional[str] = Field(None, description="Vendor or merchant name")
+    source_message_id: Optional[str] = Field(None, description="Source message ID (e.g., from WhatsApp)")
+    timestamp: datetime = Field(..., description="When the expense occurred")
+    created_at: datetime = Field(..., description="When the expense record was created")
+    updated_at: Optional[datetime] = Field(None, description="When the expense record was last updated")
+    deleted_at: Optional[datetime] = Field(None, description="When the expense was deleted (if applicable)")
+    category_name: Optional[str] = Field(None, description="Name of the category for this expense")
 
     def to_human_message(self, user_timezone: str = "UTC") -> str:
         """

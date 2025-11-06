@@ -1,33 +1,33 @@
 from enum import Enum
 from typing import Optional, List
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ReminderType(str, Enum):
     """Types of reminders supported."""
 
-    BILL = "bill"
-    EXPENSE_LOG = "expense_log"
-    CUSTOM = "custom"
+    BILL = "bill"  # Reminders for bills that need to be paid
+    EXPENSE_LOG = "expense_log"  # Reminders to log daily expenses
+    CUSTOM = "custom"  # Custom user-defined reminders
 
 
 class RecurrenceType(str, Enum):
     """Recurrence patterns for reminders."""
 
-    ONCE = "once"
-    DAILY = "daily"
-    WEEKLY = "weekly"
-    MONTHLY = "monthly"
-    YEARLY = "yearly"
+    ONCE = "once"  # Reminder occurs only once
+    DAILY = "daily"  # Reminder occurs every day
+    WEEKLY = "weekly"  # Reminder occurs every week
+    MONTHLY = "monthly"  # Reminder occurs every month
+    YEARLY = "yearly"  # Reminder occurs every year
 
 
 class RecurrenceConfig(BaseModel):
     """Configuration for recurring reminders."""
 
-    time: Optional[str] = None  # HH:MM format
-    days: Optional[List[int]] = None  # For weekly: [0-6] where 0=Monday
-    day: Optional[int] = None  # For monthly: day of month (1-31)
-    month: Optional[int] = None  # For yearly: month (1-12)
+    time: Optional[str] = Field(None, description="Time to trigger reminder in HH:MM format (24-hour)")
+    days: Optional[List[int]] = Field(None, description="Days for weekly recurrence where 0=Monday to 6=Sunday")
+    day: Optional[int] = Field(None, description="Day of month for monthly recurrence (1-31)")
+    month: Optional[int] = Field(None, description="Month for yearly recurrence (1-12)")
 
     class Config:
         json_schema_extra = {
@@ -43,7 +43,7 @@ class RecurrenceConfig(BaseModel):
 class ReminderStatus(str, Enum):
     """Status of a reminder."""
 
-    ACTIVE = "active"
-    SNOOZED = "snoozed"
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
+    ACTIVE = "active"  # Reminder is active and will trigger
+    SNOOZED = "snoozed"  # Reminder is temporarily snoozed
+    COMPLETED = "completed"  # Reminder has been completed
+    CANCELLED = "cancelled"  # Reminder has been cancelled

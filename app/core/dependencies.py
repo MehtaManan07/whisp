@@ -1,4 +1,3 @@
-# app/core/dependencies.py
 """
 Centralized dependency management
 Singletons for stateless services, per-request for DB sessions
@@ -12,7 +11,6 @@ from fastapi import Depends
 
 from app.core.cache.redis_client import RedisClient
 from app.core.cache.service import CacheService
-from app.core.scheduler import Scheduler
 from app.core.db.engine import get_db_util
 from app.integrations.llm.key_manager import APIKeyManager
 from app.integrations.llm.service import LLMService
@@ -56,12 +54,6 @@ def get_cache_service():
     """Cache service - SINGLETON"""
     redis_client = get_redis()
     return CacheService(redis_client)
-
-
-@lru_cache()
-def get_scheduler():
-    """Scheduler service - SINGLETON"""
-    return Scheduler()
 
 
 @lru_cache()
@@ -186,4 +178,3 @@ OrchestratorDep = Annotated[MessageOrchestrator, Depends(get_orchestrator)]
 
 # Cache dependencies
 CacheServiceDep = Annotated[CacheService, Depends(get_cache_service)]
-SchedulerDep = Annotated[Scheduler, Depends(get_scheduler)]

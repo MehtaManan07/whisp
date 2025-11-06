@@ -70,7 +70,9 @@ class LLMService:
         if not self.use_key_rotation and not self.api_key:
             self.api_key = config.open_router_api_key
             if not self.api_key:
-                logger.warning("OpenRouter API key not configured and key rotation disabled")
+                logger.warning(
+                    "OpenRouter API key not configured and key rotation disabled"
+                )
 
     async def complete(
         self,
@@ -137,18 +139,20 @@ class LLMService:
             temperature=temperature,
             **kwargs,
         )
-        
+
         return await self.chat_with_groq(request)
 
     async def chat_with_groq(self, request: LLMRequest) -> LLMResponse:
         """Chat interface using Groq API."""
         groq_api_key = config.groq_api_key
         if not groq_api_key:
-            raise LLMServiceError("Groq API key not configured. Set GROQ_API_KEY in .env")
-        
+            raise LLMServiceError(
+                "Groq API key not configured. Set GROQ_API_KEY in .env"
+            )
+
         # Build payload
         payload = self._build_payload(request, default_model="llama-3.3-70b-versatile")
-        
+
         # Make the request
         return await self._make_groq_request(payload, groq_api_key)
 
@@ -157,14 +161,14 @@ class LLMService:
     ) -> Dict[str, Any]:
         """Build API payload from request."""
         model = request.model or default_model or self.default_model
-        
+
         payload = {
             "model": model,
             "messages": [
                 {"role": msg.role, "content": msg.content} for msg in request.messages
             ],
         }
-        
+
         # Add optional parameters
         if request.max_tokens is not None:
             payload["max_tokens"] = request.max_tokens
@@ -176,7 +180,7 @@ class LLMService:
             payload["frequency_penalty"] = request.frequency_penalty
         if request.presence_penalty is not None:
             payload["presence_penalty"] = request.presence_penalty
-        
+
         return payload
 
     async def _make_openrouter_request(
@@ -226,7 +230,7 @@ class LLMService:
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
-        
+
         groq_url = "https://api.groq.com/openai/v1/chat/completions"
 
         try:
@@ -236,12 +240,12 @@ class LLMService:
                     headers=headers,
                     json=payload,
                 )
-                
+
                 if response.status_code != 200:
                     error_msg = f"HTTP {response.status_code}: {response.text}"
                     logger.error(f"Groq API error: {error_msg}")
                     raise LLMServiceError(f"Groq API error: {error_msg}")
-                
+
                 data = response.json()
                 return self._parse_response(data)
 
@@ -292,23 +296,23 @@ class LLMService:
     def _clean_special_tokens(self, content: str) -> str:
         """Remove special control tokens that some models emit."""
         special_tokens = [
-            r'<｜begin▁of▁sentence｜>',
-            r'<\|begin_of_sentence\|>',
-            r'<｜end▁of▁sentence｜>',
-            r'<\|end_of_sentence\|>',
-            r'<｜begin▁of▁text｜>',
-            r'<\|begin_of_text\|>',
-            r'<｜end▁of▁text｜>',
-            r'<\|end_of_text\|>',
-            r'<s>',
-            r'</s>',
-            r'<\|im_start\|>',
-            r'<\|im_end\|>',
+            r"<｜begin▁of▁sentence｜>",
+            r"<\|begin_of_sentence\|>",
+            r"<｜end▁of▁sentence｜>",
+            r"<\|end_of_sentence\|>",
+            r"<｜begin▁of▁text｜>",
+            r"<\|begin_of_text\|>",
+            r"<｜end▁of▁text｜>",
+            r"<\|end_of_text\|>",
+            r"<s>",
+            r"</s>",
+            r"<\|im_start\|>",
+            r"<\|im_end\|>",
         ]
-        
+
         for token in special_tokens:
-            content = re.sub(token, '', content)
-        
+            content = re.sub(token, "", content)
+
         return content.strip()
 
     def _extract_json_from_markdown(self, content: str) -> str:

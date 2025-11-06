@@ -1,4 +1,4 @@
-"""reminder qstash
+"""reminder scheduler
 
 Revision ID: 0caeb3505a72
 Revises: ce57ac7f8982

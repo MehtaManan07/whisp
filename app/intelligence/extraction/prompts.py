@@ -9,31 +9,29 @@ def build_dto_prompt(message: str, intent: IntentType, user_id: int) -> str:
     required_fields = set(schema.get("required", []))
     defs = schema.get("$defs", {})
 
+    # --- Helper to summarize a field's type and constraints ---
     def summarize_field(info):
-        # Handle $ref to resolve enum definitions
+        # Handle $ref to resolve enum or nested definitions
         if "$ref" in info:
-            ref_path = info["$ref"].split("/")[-1]  # Get the last part (e.g., "ReminderType")
+            ref_path = info["$ref"].split("/")[-1]
             if ref_path in defs:
                 ref_info = defs[ref_path]
                 if "enum" in ref_info:
                     return f"constrained values: {ref_info['enum']}"
-                # Recursively summarize the referenced definition
                 return summarize_field(ref_info)
-        
-        # Handle constrained values (like enum)
+
+        # Handle enums
         constrained = info.get("enum") or []
         if isinstance(constrained, (str, int)):
             constrained = [constrained]
 
         type_info = info.get("type")
 
-        # Handle combined types (e.g., oneOf, anyOf, etc.)
+        # Handle anyOf / oneOf / allOf (union types)
         for union_key in ["anyOf", "oneOf", "allOf"]:
             if union_key in info:
-                types = []
-                values = []
+                types, values = [], []
                 for option in info[union_key]:
-                    # Handle $ref in anyOf/oneOf
                     if "$ref" in option:
                         ref_path = option["$ref"].split("/")[-1]
                         if ref_path in defs and "enum" in defs[ref_path]:
@@ -50,36 +48,56 @@ def build_dto_prompt(message: str, intent: IntentType, user_id: int) -> str:
                     type_info = " / ".join(types)
 
         if constrained:
-            if type_info and not all(isinstance(v, str) for v in constrained):
-                return f"constrained values: {constrained} or {type_info}"
             return f"constrained values: {constrained}"
         elif type_info:
             return type_info
         return "unknown"
 
-    dto_lines = []
-    # Exclude category fields from prompt - let the category classifier handle categorization
-    excluded_fields = {'category_name', 'subcategory_name'}
-    
-    for field, info in fields.items():
-        if field in excluded_fields:
-            continue  # Skip category fields - classifier will handle these
-        desc = summarize_field(info)
-        required_note = "required" if field in required_fields else "optional"
-        dto_lines.append(f"- {field}: {desc} ({required_note})")
+    # --- Helper to recursively extract field descriptions ---
+    def describe_fields(properties: dict, required: set, parent: str = ""):
+        lines = []
+        for field, info in properties.items():
+            # Skip category fields — handled separately
+            if field in {"category_name", "subcategory_name"}:
+                continue
 
+            field_type = summarize_field(info)
+            required_note = "required" if field in required else "optional"
+            description = info.get("description", "No description provided")
+
+            full_field = f"{parent}{field}"
+            lines.append(
+                f"- {full_field}: {field_type} ({required_note}) — {description}"
+            )
+
+            # Handle nested object schemas (e.g., recurrence_config)
+            if info.get("type") == "object" and "properties" in info:
+                nested_props = info["properties"]
+                nested_required = set(info.get("required", []))
+                nested_lines = describe_fields(
+                    nested_props, nested_required, parent=f"{field}."
+                )
+                lines.extend(nested_lines)
+
+        return lines
+
+    dto_lines = describe_fields(fields, required_fields)
     dto_description = "\n".join(dto_lines)
+
+    # --- Current time for relative parsing ---
     current_time = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
-    
-    # Include examples if available
+
+    # --- Include examples if available ---
     examples = schema.get("examples", [])
     examples_text = ""
     if examples:
         import json
+
         examples_text = "\n\n### Examples:\n" + "\n".join(
             f"```json\n{json.dumps(ex, indent=2)}\n```" for ex in examples[:3]
         )
 
+    # --- Final prompt string ---
     return f"""
 You are an expert assistant that converts user messages into a JSON object that matches a predefined data structure (DTO).
 

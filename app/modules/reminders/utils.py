@@ -1,10 +1,10 @@
-from datetime import datetime, timedelta
-from typing import Optional, Tuple
+from datetime import datetime, timedelta, time
+from typing import Optional, Tuple, List
 from dateutil.relativedelta import relativedelta
-
 from pydantic import ValidationError
+from zoneinfo import ZoneInfo
 
-from app.modules.reminders.types import RecurrenceConfig
+from app.modules.reminders.types import RecurrenceConfig, RecurrenceType
 
 
 class RemindersUtils:
@@ -12,15 +12,11 @@ class RemindersUtils:
     def _parse_target_time(
         recurrence_config: Optional[RecurrenceConfig],
     ) -> Optional[Tuple[int, int]]:
-        """Parse target time from recurrence config."""
+        """Parse target time from recurrence config (HH:MM)."""
         if recurrence_config and recurrence_config.time:
             try:
-                hours, minutes = map(int, recurrence_config.time.split(":"))
-                if not (0 <= hours <= 23 and 0 <= minutes <= 59):
-                    raise ValidationError(
-                        f"Invalid time format: {recurrence_config.time}"
-                    )
-                return (hours, minutes)
+                parsed_time = datetime.strptime(recurrence_config.time, "%H:%M").time()
+                return parsed_time.hour, parsed_time.minute
             except ValueError:
                 raise ValidationError(f"Invalid time format: {recurrence_config.time}")
         return None
@@ -37,100 +33,119 @@ class RemindersUtils:
         return dt
 
     @staticmethod
+    def _advance_time(
+        dt: datetime,
+        days: int = 0,
+        weeks: int = 0,
+        months: int = 0,
+        years: int = 0,
+        target_time: Optional[Tuple[int, int]] = None,
+    ) -> datetime:
+        """Advance datetime by given period and apply target time."""
+        dt += relativedelta(days=days, weeks=weeks, months=months, years=years)
+        return RemindersUtils._apply_target_time(dt, target_time)
+
+    @staticmethod
     def _calculate_daily_trigger(
         base_time: datetime, target_time: Optional[Tuple[int, int]]
     ) -> datetime:
-        """Calculate next trigger for daily recurrence."""
-        if target_time:
-            # Check if target time for today has already passed
-            today_target = RemindersUtils._apply_target_time(base_time, target_time)
-
-            if base_time < today_target:
-                # Target time hasn't passed today, schedule for today
-                return today_target
-            else:
-                # Target time has passed today, schedule for tomorrow
-                tomorrow = base_time + timedelta(days=1)
-                return RemindersUtils._apply_target_time(tomorrow, target_time)
-        else:
-            # No specific time, just add a day
-            return base_time + timedelta(days=1)
+        today_target = RemindersUtils._apply_target_time(base_time, target_time)
+        if base_time < today_target:
+            return today_target
+        return RemindersUtils._advance_time(base_time, days=1, target_time=target_time)
 
     @staticmethod
     def _calculate_weekly_trigger(
         base_time: datetime,
-        recurrence_config: Optional[RecurrenceConfig],
+        recurrence_config: RecurrenceConfig,
         target_time: Optional[Tuple[int, int]],
     ) -> datetime:
-        """Calculate next trigger for weekly recurrence."""
-        if not recurrence_config or not recurrence_config.days:
+        if not recurrence_config.days:
             raise ValidationError("Weekly recurrence requires 'days' in config")
 
-        current_day = base_time.weekday()
-        target_days = sorted(recurrence_config.days)
-
-        # Find next day in the cycle
-        next_day = None
-        for day in target_days:
-            if day > current_day:
-                next_day = day
-                break
-
-        if next_day is None:
-            # Wrap to next week
-            next_day = target_days[0]
-            days_ahead = (7 - current_day) + next_day
-        else:
-            days_ahead = next_day - current_day
-
-        next_trigger = base_time + timedelta(days=days_ahead)
-        return RemindersUtils._apply_target_time(next_trigger, target_time)
+        current_day = base_time.weekday()  # 0 = Monday
+        days_ahead = min((d - current_day) % 7 for d in recurrence_config.days)
+        return RemindersUtils._advance_time(
+            base_time, days=days_ahead, target_time=target_time
+        )
 
     @staticmethod
     def _calculate_monthly_trigger(
         base_time: datetime,
-        recurrence_config: Optional[RecurrenceConfig],
+        recurrence_config: RecurrenceConfig,
         target_time: Optional[Tuple[int, int]],
     ) -> datetime:
-        """Calculate next trigger for monthly recurrence."""
-        if not recurrence_config or not recurrence_config.day:
+        if not recurrence_config.day:
             raise ValidationError("Monthly recurrence requires 'day' in config")
-
-        target_day = recurrence_config.day
-        next_trigger = base_time + relativedelta(months=1)
-
-        # Handle month-end edge cases
-        try:
-            next_trigger = next_trigger.replace(day=target_day)
-        except ValueError:
-            # Day doesn't exist in month (e.g., Feb 30), use last day
-            next_trigger = (
-                next_trigger.replace(day=1)
-                + relativedelta(months=1)
-                - timedelta(days=1)
-            )
-
-        return RemindersUtils._apply_target_time(next_trigger, target_time)
+        # Advance one month, day automatically handles month-end
+        return base_time + relativedelta(
+            months=+1,
+            day=recurrence_config.day,
+            hour=(target_time[0] if target_time else 0),
+            minute=(target_time[1] if target_time else 0),
+            second=0,
+            microsecond=0,
+        )
 
     @staticmethod
     def _calculate_yearly_trigger(
         base_time: datetime,
-        recurrence_config: Optional[RecurrenceConfig],
+        recurrence_config: RecurrenceConfig,
         target_time: Optional[Tuple[int, int]],
     ) -> datetime:
-        """Calculate next trigger for yearly recurrence."""
-        if (
-            not recurrence_config
-            or not recurrence_config.month
-            or not recurrence_config.day
-        ):
+        if not recurrence_config.month or not recurrence_config.day:
             raise ValidationError(
                 "Yearly recurrence requires 'month' and 'day' in config"
             )
-
-        next_trigger = base_time + relativedelta(years=1)
-        next_trigger = next_trigger.replace(
-            month=recurrence_config.month, day=recurrence_config.day
+        return base_time + relativedelta(
+            years=+1,
+            month=recurrence_config.month,
+            day=recurrence_config.day,
+            hour=(target_time[0] if target_time else 0),
+            minute=(target_time[1] if target_time else 0),
+            second=0,
+            microsecond=0,
         )
 
-        return RemindersUtils._apply_target_time(next_trigger, target_time)
+    @staticmethod
+    def calculate_next_trigger(
+        base_time: datetime,
+        recurrence_type: RecurrenceType,
+        recurrence_config: Optional[RecurrenceConfig],
+        user_timezone: str = "UTC",
+    ) -> datetime:
+        """Calculate next trigger datetime in UTC based on recurrence."""
+        tz = ZoneInfo(user_timezone)
+        base_time_local = base_time.astimezone(tz)
+
+        target_time = RemindersUtils._parse_target_time(recurrence_config)
+
+        if recurrence_type == RecurrenceType.ONCE:
+            next_trigger_local = base_time_local
+        elif recurrence_type == RecurrenceType.DAILY:
+            next_trigger_local = RemindersUtils._calculate_daily_trigger(
+                base_time_local, target_time
+            )
+        elif recurrence_type == RecurrenceType.WEEKLY:
+            if recurrence_config is None:
+                raise ValidationError("Weekly recurrence requires config")
+            next_trigger_local = RemindersUtils._calculate_weekly_trigger(
+                base_time_local, recurrence_config, target_time
+            )
+        elif recurrence_type == RecurrenceType.MONTHLY:
+            if recurrence_config is None:
+                raise ValidationError("Monthly recurrence requires config")
+            next_trigger_local = RemindersUtils._calculate_monthly_trigger(
+                base_time_local, recurrence_config, target_time
+            )
+        elif recurrence_type == RecurrenceType.YEARLY:
+            if recurrence_config is None:
+                raise ValidationError("Yearly recurrence requires config")
+            next_trigger_local = RemindersUtils._calculate_yearly_trigger(
+                base_time_local, recurrence_config, target_time
+            )
+        else:
+            raise ValidationError(f"Unsupported recurrence type: {recurrence_type}")
+
+        # Return UTC datetime
+        return next_trigger_local.astimezone(ZoneInfo("UTC"))
