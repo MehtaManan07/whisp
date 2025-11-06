@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
 
+from app.core.config import config
 from app.core.cache.redis_client import RedisClient
 from app.core.cache.service import CacheService
 from app.core.db.engine import get_db_util
@@ -57,18 +58,25 @@ def get_cache_service():
 
 
 @lru_cache()
-def get_api_key_manager():
+def get_api_key_manager(keys: str = "", key_prefix: str = "llm_usage:"):
     """API Key Manager - SINGLETON"""
     from app.core.config import config
 
     cache_service = get_cache_service()
-    return APIKeyManager(cache_service, daily_limit=config.open_router_daily_limit)
+    return APIKeyManager(
+        cache_service,
+        daily_limit=config.open_router_daily_limit,
+        keys=keys,
+        key_prefix=key_prefix,
+    )
 
 
 @lru_cache()
 def get_llm_service():
     """LLM service - SINGLETON (stateless)"""
-    api_key_manager = get_api_key_manager()
+    api_key_manager = get_api_key_manager(
+        keys=config.open_router_api_keys, key_prefix="llm_usage:"
+    )
     return LLMService(api_key_manager=api_key_manager)
 
 

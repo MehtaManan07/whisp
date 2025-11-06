@@ -14,6 +14,8 @@ class Config(BaseSettings):
     wa_app_id: str = Field(default="", alias="WA_APP_ID")
     wa_app_secret: str = Field(default="", alias="WA_APP_SECRET")
     
+    cron_keys: str = Field(default="", alias="CRON_KEYS")
+    
     # Redis Configuration
     redis_url: str = Field(default="", alias="UPSTASH_REDIS_REST_URL")
     redis_token: str = Field(default="", alias="UPSTASH_REDIS_REST_TOKEN")

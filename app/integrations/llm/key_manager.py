@@ -3,7 +3,6 @@ from typing import List, Optional, Tuple
 from datetime import datetime, timezone
 from dataclasses import dataclass
 
-from app.core.config import config
 from app.core.cache.service import CacheService
 
 logger = logging.getLogger(__name__)
@@ -40,7 +39,13 @@ class APIKeyManager:
     - Falls back gracefully when Redis is unavailable
     """
 
-    def __init__(self, cache_service: CacheService, daily_limit: int = 50):
+    def __init__(
+        self,
+        cache_service: CacheService,
+        key_prefix: str,
+        keys: str,
+        daily_limit: int = 50,
+    ):
         """
         Initialize the API key manager.
 
@@ -50,31 +55,25 @@ class APIKeyManager:
         """
         self.cache_service = cache_service
         self.daily_limit = daily_limit
-        self._api_keys = self._load_api_keys()
+        self._api_keys = self._load_api_keys(keys)
         self._current_key_index = 0
+        self._key_prefix = key_prefix
 
-    def _load_api_keys(self) -> List[str]:
+    def _load_api_keys(self, keys_string: str) -> List[str]:
         """Load API keys from configuration."""
         keys = []
 
         # First, try the new comma-separated list
-        if config.open_router_api_keys:
-            keys = [
-                key.strip()
-                for key in config.open_router_api_keys.split(",")
-                if key.strip()
-            ]
-
-        # Fall back to single key if no list provided
-        elif config.open_router_api_key:
-            keys = [config.open_router_api_key]
-
+        if keys_string:
+            keys = [key.strip() for key in keys_string.split(",") if key.strip()]
+        if not keys:
+            raise ValueError("No API keys provided")
         return keys
 
     def _get_today_key(self, key_index: int) -> str:
         """Get Redis key for today's usage count for a specific API key."""
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        return f"llm_usage:{today}:key_{key_index}"
+        return f"{self._key_prefix}:{today}:key_{key_index}"
 
     def _get_key_usage_today(self, key_index: int) -> int:
         """Get today's usage count for a specific key."""
