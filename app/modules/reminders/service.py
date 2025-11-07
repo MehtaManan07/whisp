@@ -1,14 +1,16 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any, List, Optional, TYPE_CHECKING
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, select
 import logging
 
+from app.core.cron.service import CronService
 from app.modules.reminders.models import Reminder
 
 if TYPE_CHECKING:
     from app.integrations.whatsapp.service import WhatsAppService
     from app.modules.users.service import UsersService
+from app.modules.reminders.scheduler import ReminderScheduler
 from app.modules.reminders.types import RecurrenceType, RecurrenceConfig
 from app.modules.reminders.dto import (
     CreateReminderDTO,
@@ -25,8 +27,14 @@ logger = logging.getLogger(__name__)
 class ReminderService:
     """Service for managing reminders."""
 
-    def __init__(self):
+    def __init__(
+        self,
+        cron_service: CronService,
+        reminder_scheduler: ReminderScheduler,
+    ):
         self.logger = logger
+        self.cron_service = cron_service
+        self.reminder_scheduler = reminder_scheduler
 
     async def create_reminder(
         self,
@@ -69,9 +77,19 @@ class ReminderService:
                 db.add(reminder)
                 await db.flush()  # reminder.id is available without full commit
 
-            # Refresh once after commit if necessary
-            await db.refresh(reminder)
             logger.info(f"Created reminder {reminder.id}")
+
+            # Schedule cron job for the reminder
+            cron_job_id = await self.reminder_scheduler.schedule_cron_job(
+                reminder, user_timezone
+            )
+            if cron_job_id:
+                reminder.cron_job_id = cron_job_id
+                await db.commit()
+                await db.refresh(reminder)
+                logger.info(
+                    f"Scheduled cron job {cron_job_id} for reminder {reminder.id}"
+                )
 
             return reminder
 
@@ -176,6 +194,10 @@ class ReminderService:
             await db.commit()
             await db.refresh(reminder)
 
+            # Update cron job if it exists
+            if reminder.cron_job_id:
+                await self.reminder_scheduler.update_cron_job(reminder, user_timezone)
+
             return reminder
 
         except Exception as e:
@@ -198,6 +220,10 @@ class ReminderService:
         reminder = await self.get_reminder(db, reminder_id, user_id)
 
         try:
+            # Delete cron job if it exists
+            if reminder.cron_job_id:
+                await self.reminder_scheduler.delete_cron_job(reminder.cron_job_id)
+
             reminder.deleted_at = utc_now()
             reminder.is_active = False
             await db.commit()
@@ -408,29 +434,33 @@ class ReminderService:
         try:
             # Get all due reminders
             due_reminders = await self.get_due_reminders(db, limit)
-            
+
             if not due_reminders:
                 logger.info("No due reminders found")
                 return {
                     "status": "success",
                     "processed": 0,
-                    "message": "No due reminders"
+                    "message": "No due reminders",
                 }
 
             processed_count = 0
             error_count = 0
-            
+
             for reminder in due_reminders:
                 try:
                     # Get the user with phone number
                     user = await user_service.get_user_by_id(db, reminder.user_id)
                     if not user or not user.phone_number:
-                        logger.error(f"User {reminder.user_id} not found or has no phone number")
+                        logger.error(
+                            f"User {reminder.user_id} not found or has no phone number"
+                        )
                         error_count += 1
                         continue
 
                     # Get user timezone
-                    user_timezone = user_service.get_user_timezone(user) if user else "UTC"
+                    user_timezone = (
+                        user_service.get_user_timezone(user) if user else "UTC"
+                    )
 
                     # Send WhatsApp notification
                     try:
@@ -441,7 +471,9 @@ class ReminderService:
                             message += f"\n\n{reminder.description}"
 
                         await whatsapp_service.send_text(user.phone_number, message)
-                        logger.info(f"Sent reminder {reminder.id} to user {user.phone_number}")
+                        logger.info(
+                            f"Sent reminder {reminder.id} to user {user.phone_number}"
+                        )
                     except Exception as e:
                         logger.error(
                             f"Failed to send WhatsApp notification for reminder {reminder.id}: {e}"
@@ -458,10 +490,8 @@ class ReminderService:
                     error_count += 1
                     continue
 
-            logger.info(
-                f"Processed {processed_count} reminders, {error_count} errors"
-            )
-            
+            logger.info(f"Processed {processed_count} reminders, {error_count} errors")
+
             return {
                 "status": "success",
                 "processed": processed_count,
@@ -476,4 +506,3 @@ class ReminderService:
                 "message": str(e),
                 "processed": 0,
             }
-

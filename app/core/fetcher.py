@@ -79,7 +79,7 @@ async def fetch(
 
     async with aiohttp.ClientSession(
         timeout=aiohttp.ClientTimeout(total=timeout),
-        connector=aiohttp.TCPConnector(ssl=ssl_context)
+        connector=aiohttp.TCPConnector(ssl=ssl_context),
     ) as session:
         try:
             async with session.request(
@@ -98,10 +98,10 @@ async def fetch(
         except aiohttp.ClientResponseError as e:
             logger.error("HTTP error %s: %s", e.status, e.message)
         except aiohttp.ClientError as e:
-            logger.error("Network error: %s", e)
+            logger.error("Network error: %s | URL: %s %s", e, method, url)
         except ValidationError as e:
-            logger.error("Validation error: %s", e)
+            logger.error("Validation error: %s | URL: %s %s", e, method, url)
         except Exception as e:
-            logger.error("Unexpected error: %s", e)
+            logger.error("Unexpected error: %s | URL: %s %s", e, method, url)
 
     return None  # type: ignore

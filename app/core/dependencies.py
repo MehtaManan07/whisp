@@ -17,12 +17,14 @@ from app.integrations.llm.key_manager import APIKeyManager
 from app.integrations.llm.service import LLMService
 from app.integrations.whatsapp.service import WhatsAppService
 from app.modules.expenses.service import ExpensesService
+from app.modules.reminders.scheduler import ReminderScheduler
 from app.modules.users.service import UsersService
 from app.modules.reminders.service import ReminderService
 from app.modules.categories.service import CategoriesService
 from app.intelligence.intent.classifier import IntentClassifier
 from app.intelligence.categorization.classifier import CategoryClassifier
 from app.core.orchestrator import MessageOrchestrator
+from app.core.cron.service import CronService
 
 
 # ============================================================================
@@ -120,9 +122,20 @@ def get_category_service():
 
 
 @lru_cache()
+def get_cron_service():
+    """Cron service - SINGLETON"""
+    api_key_manager = get_api_key_manager(
+        keys=config.cron_keys, key_prefix="cron_usage:"
+    )
+    return CronService(api_key_manager=api_key_manager)
+
+
+@lru_cache()
 def get_reminder_service():
     """Reminder service - SINGLETON"""
-    return ReminderService()
+    cron_service = get_cron_service()
+    reminder_scheduler = ReminderScheduler(cron_service=cron_service)
+    return ReminderService(cron_service=cron_service, reminder_scheduler=reminder_scheduler)
 
 
 # ============================================================================
@@ -186,3 +199,6 @@ OrchestratorDep = Annotated[MessageOrchestrator, Depends(get_orchestrator)]
 
 # Cache dependencies
 CacheServiceDep = Annotated[CacheService, Depends(get_cache_service)]
+
+# Cron dependencies
+CronServiceDep = Annotated[CronService, Depends(get_cron_service)]

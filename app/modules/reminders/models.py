@@ -45,6 +45,9 @@ class Reminder(BaseModel):
 
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    
+    # Cron Integration
+    cron_job_id: Mapped[Optional[int]] = mapped_column(nullable=True)  # ID from cron-job.org
 
     # Relationships
     user = relationship("User", back_populates="reminders")

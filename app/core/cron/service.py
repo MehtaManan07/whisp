@@ -10,6 +10,7 @@ from app.core.cron.types import (
     DeleteJobResponse,
     Job,
     DetailedJob,
+    JobSchedule,
     JobsListResponse,
     UpdateJobResponse,
 )
@@ -182,17 +183,17 @@ class JobScheduleBuilder:
         self.wdays = wdays
         return self
 
-    def build(self) -> Dict[str, Any]:
+    def build(self) -> JobSchedule:
         """Build the schedule dictionary."""
-        return {
-            "timezone": self.timezone,
-            "expiresAt": self.expires_at,
-            "hours": self.hours,
-            "mdays": self.mdays,
-            "minutes": self.minutes,
-            "months": self.months,
-            "wdays": self.wdays,
-        }
+        return JobSchedule(
+            expiresAt=self.expires_at,
+            timezone=self.timezone,
+            hours=self.hours,
+            mdays=self.mdays,
+            minutes=self.minutes,
+            months=self.months,
+            wdays=self.wdays,
+        )
 
 
 class CronService:
@@ -215,7 +216,6 @@ class CronService:
         if api_key_response is None:
             raise ValueError("No API key available")
         api_key, key_index = api_key_response
-        print(api_key, key_index)
         return {
             **self.DEFAULT_HEADERS,
             "Authorization": f"Bearer {api_key}",
@@ -255,7 +255,10 @@ class CronService:
             DetailedJob object or None on error.
         """
         response: DetailedJob | None = await fetch(
-            f"{self.base_url}/{job_id}", model=DetailedJob, method="GET"
+            f"{self.base_url}/{job_id}",
+            model=DetailedJob,
+            method="GET",
+            headers=self._get_headers(),
         )
         if response is None:
             return None
@@ -276,12 +279,9 @@ class CronService:
         response: CreateJobResponse | None = await fetch(
             self.base_url,
             model=CreateJobResponse,
-            method="POST",
-            json=job_data.model_dump(exclude_unset=True),
-            headers={
-                **self.DEFAULT_HEADERS,
-                "Authorization": f"Bearer {self.api_key_manager.get_available_key()}",
-            },
+            method="PUT",
+            json={"job": job_data.model_dump(exclude_unset=True, mode='json')},
+            headers=self._get_headers(),
         )
         if response is None:
             return None
@@ -306,6 +306,7 @@ class CronService:
             model=UpdateJobResponse,
             method="PATCH",
             json=payload,
+            headers=self._get_headers(),
         )
         return result is not None
 
@@ -325,5 +326,6 @@ class CronService:
             f"{self.base_url}/{job_id}",
             model=DeleteJobResponse,
             method="DELETE",
+            headers=self._get_headers(),
         )
         return result is not None
