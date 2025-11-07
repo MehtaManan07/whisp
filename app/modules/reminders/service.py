@@ -72,10 +72,9 @@ class ReminderService:
                 is_active=True,
             )
 
-            # Use a transaction context to minimize commits
-            async with db.begin():
-                db.add(reminder)
-                await db.flush()  # reminder.id is available without full commit
+            # Add reminder to session and flush to get ID
+            db.add(reminder)
+            await db.flush()  # reminder.id is available without full commit
 
             logger.info(f"Created reminder {reminder.id}")
 

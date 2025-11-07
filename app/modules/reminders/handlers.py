@@ -3,21 +3,22 @@ from app.intelligence.intent.base_handler import BaseHandlers
 from app.intelligence.intent.decorators import intent_handler
 from app.intelligence.intent.types import CLASSIFIED_RESULT, IntentType
 from app.modules.reminders.dto import CreateReminderDTO, ListRemindersDTO
-from app.modules.reminders.service import ReminderService
 from app.modules.users.service import UsersService
 
 
 class ReminderHandlers(BaseHandlers):
     def __init__(self):
         super().__init__()
-        self.service = ReminderService()
+        # Import here to avoid circular import
+        from app.core.dependencies import get_reminder_service
+        self.service = get_reminder_service()
         self.users_service = UsersService()
 
     @intent_handler(IntentType.SET_REMINDER)
     async def set_reminder(
-        self, 
-        classified_result: CLASSIFIED_RESULT, 
-        user_id: int, 
+        self,
+        classified_result: CLASSIFIED_RESULT,
+        user_id: int,
         db: AsyncSession,
     ) -> str:
         """Handle set reminder intent with timezone awareness and scheduling."""
@@ -32,9 +33,9 @@ class ReminderHandlers(BaseHandlers):
         user_timezone = self.users_service.get_user_timezone(user) if user else "UTC"
 
         await self.service.create_reminder(
-            db=db, 
-            user_id=user_id, 
-            data=dto_instance, 
+            db=db,
+            user_id=user_id,
+            data=dto_instance,
             user_timezone=user_timezone,
         )
 
