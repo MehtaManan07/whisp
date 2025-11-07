@@ -21,12 +21,7 @@ class Config(BaseSettings):
     redis_token: str = Field(default="", alias="UPSTASH_REDIS_REST_TOKEN")
     redis_host: str = Field(default="", alias="UPSTASH_REDIS_HOST")
     redis_port: int = Field(default=0, alias="UPSTASH_REDIS_PORT")
-    
-    # AWS EventBridge Scheduler Configuration
-    aws_region: str = Field(default="us-east-1", alias="AWS_REGION")
-    aws_access_key_id: str = Field(default="", alias="AWS_ACCESS_KEY_ID")
-    aws_secret_access_key: str = Field(default="", alias="AWS_SECRET_ACCESS_KEY")
-    eventbridge_role_arn: str = Field(default="", alias="EVENTBRIDGE_ROLE_ARN")  # IAM role for EventBridge to invoke HTTP targets
+
     app_base_url: str = Field(default="", alias="APP_BASE_URL")  # Your app URL for webhook callbacks
     
     # Reminders Process Token (for cron job authentication)
