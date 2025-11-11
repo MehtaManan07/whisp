@@ -30,7 +30,9 @@ class UsersService:
         detected_timezone = "UTC"
         if user_data.phone_number:
             detected_timezone = detect_timezone_from_phone(user_data.phone_number)
-            self.logger.info(f"Detected timezone {detected_timezone} for phone {user_data.phone_number}")
+            self.logger.info(
+                f"Detected timezone {detected_timezone} for phone {user_data.phone_number}"
+            )
 
         # Create new user
         new_user = User(
@@ -53,7 +55,9 @@ class UsersService:
         # This method is used by the orchestrator
         user_data = CreateUserDto(
             wa_id=phone_number,  # Use phone as wa_id for now
-            phone_number=phone_number
+            phone_number=phone_number,
+            name=None,
+            meta=None,
         )
         result = await self.find_or_create(db, user_data)
         return result["user"]
@@ -68,14 +72,18 @@ class UsersService:
         result = await db.execute(select(User).where(User.wa_id == wa_id))
         return result.scalar_one_or_none()
 
-    async def get_all_users(self, db: AsyncSession, limit: int = 100, offset: int = 0) -> List[User]:
+    async def get_all_users(
+        self, db: AsyncSession, limit: int = 100, offset: int = 0
+    ) -> List[User]:
         """Get all users with pagination"""
         result = await db.execute(
             select(User).offset(offset).limit(limit).order_by(User.created_at.desc())
         )
         return list(result.scalars().all())
 
-    async def update_user(self, db: AsyncSession, user_id: int, update_data: UpdateUserDto) -> Optional[User]:
+    async def update_user(
+        self, db: AsyncSession, user_id: int, update_data: UpdateUserDto
+    ) -> Optional[User]:
         """Update user by ID - Optimized to use 1 query instead of 3"""
         # Update only provided fields
         update_dict = update_data.model_dump(exclude_unset=True)
@@ -86,16 +94,13 @@ class UsersService:
         # Fetch and update in same transaction using RETURNING clause
         # This is more efficient than separate fetch-update-fetch
         result = await db.execute(
-            update(User)
-            .where(User.id == user_id)
-            .values(**update_dict)
-            .returning(User)
+            update(User).where(User.id == user_id).values(**update_dict).returning(User)
         )
         updated_user = result.scalar_one_or_none()
-        
+
         if updated_user:
             await db.commit()
-        
+
         return updated_user
 
     async def delete_user(self, db: AsyncSession, user_id: int) -> bool:
@@ -108,9 +113,13 @@ class UsersService:
         await db.commit()
         return True
 
-    async def update_user_timezone(self, db: AsyncSession, user_id: int, timezone: str) -> Optional[User]:
+    async def update_user_timezone(
+        self, db: AsyncSession, user_id: int, timezone: str
+    ) -> Optional[User]:
         """Update user's timezone"""
-        update_data = UpdateUserDto(timezone=timezone)
+        update_data = UpdateUserDto(
+            timezone=timezone, name=None, phone_number=None, meta=None
+        )
         return await self.update_user(db, user_id, update_data)
 
     def get_user_timezone(self, user: User) -> str:

@@ -20,43 +20,76 @@ from app.core.fetcher import fetch
 logger = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
+from typing import List, Optional
+from app.core.cron.types import JobSchedule
+
 
 class JobScheduleBuilder:
-    """Helper for building JobSchedule objects with fluent API."""
+    """
+    Fluent builder for constructing JobSchedule objects safely.
+    Automatically fills wildcard values (-1) for unspecified fields.
+    """
+
+    # Allowed ranges for quick validation
+    _VALID_RANGES = {
+        "hours": (0, 23),
+        "minutes": (0, 59),
+        "mdays": (1, 31),
+        "months": (1, 12),
+        "wdays": (0, 6),
+    }
 
     def __init__(
         self,
         timezone: str = "UTC",
         expires_at: int = 0,
         hours: Optional[List[int]] = None,
-        mdays: Optional[List[int]] = None,
         minutes: Optional[List[int]] = None,
+        mdays: Optional[List[int]] = None,
         months: Optional[List[int]] = None,
         wdays: Optional[List[int]] = None,
     ):
         self.timezone = timezone
         self.expires_at = expires_at
-        self.hours = hours or []
-        self.mdays = mdays or []
-        self.minutes = minutes or []
-        self.months = months or []
-        self.wdays = wdays or []
+        self.hours = self._sanitize("hours", hours)
+        self.minutes = self._sanitize("minutes", minutes)
+        self.mdays = self._sanitize("mdays", mdays)
+        self.months = self._sanitize("months", months)
+        self.wdays = self._sanitize("wdays", wdays)
 
-    @classmethod
-    def every_hour(cls, timezone: str = "UTC") -> "JobScheduleBuilder":
-        """Execute every hour."""
-        return cls(timezone=timezone, minutes=[0])
+    # ---------------------------
+    # Helpers
+    # ---------------------------
+
+    def _sanitize(self, name: str, values: Optional[List[int]]) -> List[int]:
+        """Validate and normalize input lists, defaulting to wildcard [-1]."""
+        if not values:
+            return [-1]
+        low, high = self._VALID_RANGES.get(name, (0, 59))
+        for v in values:
+            if v != -1 and not (low <= v <= high):
+                raise ValueError(f"{name} values must be -1 or in {low}-{high}")
+        return values
+
+    # ---------------------------
+    # Preset schedules
+    # ---------------------------
 
     @classmethod
     def every_minute(cls, timezone: str = "UTC") -> "JobScheduleBuilder":
-        """Execute every minute."""
+        """Run every minute."""
         return cls(timezone=timezone, minutes=[-1])
+
+    @classmethod
+    def every_hour(cls, timezone: str = "UTC") -> "JobScheduleBuilder":
+        """Run every hour at minute 0."""
+        return cls(timezone=timezone, minutes=[0])
 
     @classmethod
     def every_day(
         cls, timezone: str = "UTC", at_hour: int = 0, at_minute: int = 0
     ) -> "JobScheduleBuilder":
-        """Execute every day at specified time."""
+        """Run every day at specific time."""
         return cls(timezone=timezone, hours=[at_hour], minutes=[at_minute])
 
     @classmethod
@@ -67,11 +100,12 @@ class JobScheduleBuilder:
         at_hour: int = 0,
         at_minute: int = 0,
     ) -> "JobScheduleBuilder":
-        """Execute every week on specified day (0=Sunday - 6=Saturday)."""
-        if not 0 <= day_of_week <= 6:
-            raise ValueError("day_of_week must be 0-6 (0=Sunday)")
+        """Run weekly on a specific day (0=Sunday - 6=Saturday)."""
         return cls(
-            timezone=timezone, wdays=[day_of_week], hours=[at_hour], minutes=[at_minute]
+            timezone=timezone,
+            wdays=[day_of_week],
+            hours=[at_hour],
+            minutes=[at_minute],
         )
 
     @classmethod
@@ -82,15 +116,12 @@ class JobScheduleBuilder:
         at_hour: int = 0,
         at_minute: int = 0,
     ) -> "JobScheduleBuilder":
-        """Execute every month on specified day (1-31)."""
-        if not 1 <= day_of_month <= 31:
-            raise ValueError("day_of_month must be 1-31")
+        """Run monthly on a specific day."""
         return cls(
             timezone=timezone,
             mdays=[day_of_month],
             hours=[at_hour],
             minutes=[at_minute],
-            months=[-1],
         )
 
     @classmethod
@@ -103,94 +134,62 @@ class JobScheduleBuilder:
         minute: int = 0,
         timezone: str = "UTC",
     ) -> "JobScheduleBuilder":
-        """Execute once at specified date and time.
-
-        Args:
-            year: Year (YYYY)
-            month: Month (1-12)
-            day: Day of month (1-31)
-            hour: Hour (0-23)
-            minute: Minute (0-59)
-            timezone: Timezone string
-
-        Returns:
-            JobScheduleBuilder configured for one-time execution
-        """
-        if not 1 <= month <= 12:
-            raise ValueError("month must be 1-12")
-        if not 1 <= day <= 31:
-            raise ValueError("day must be 1-31")
-        if not 0 <= hour <= 23:
-            raise ValueError("hour must be 0-23")
-        if not 0 <= minute <= 59:
-            raise ValueError("minute must be 0-59")
-
-        # Format: YYYYMMDDhhmmss
+        """Run once at a specific date/time (sets expiresAt)."""
         expires_at = int(f"{year:04d}{month:02d}{day:02d}{hour:02d}{minute:02d}00")
-
         return cls(
             timezone=timezone,
             expires_at=expires_at,
-            hours=[hour],
-            mdays=[day],
-            minutes=[minute],
             months=[month],
+            mdays=[day],
+            hours=[hour],
+            minutes=[minute],
             wdays=[-1],
         )
 
+    # ---------------------------
+    # Fluent setters
+    # ---------------------------
+
     def set_timezone(self, timezone: str) -> "JobScheduleBuilder":
-        """Set timezone."""
         self.timezone = timezone
         return self
 
     def set_expires_at(self, expires_at: int) -> "JobScheduleBuilder":
-        """Set expiration date/time (format: YYYYMMDDhhmmss, 0 = does not expire)."""
         self.expires_at = expires_at
         return self
 
     def set_hours(self, hours: List[int]) -> "JobScheduleBuilder":
-        """Set hours (0-23; [-1] = every hour)."""
-        if hours and not all(h == -1 or 0 <= h <= 23 for h in hours):
-            raise ValueError("hours must be -1 or 0-23")
-        self.hours = hours
+        self.hours = self._sanitize("hours", hours)
         return self
 
     def set_minutes(self, minutes: List[int]) -> "JobScheduleBuilder":
-        """Set minutes (0-59; [-1] = every minute)."""
-        if minutes and not all(m == -1 or 0 <= m <= 59 for m in minutes):
-            raise ValueError("minutes must be -1 or 0-59")
-        self.minutes = minutes
+        self.minutes = self._sanitize("minutes", minutes)
         return self
 
     def set_mdays(self, mdays: List[int]) -> "JobScheduleBuilder":
-        """Set days of month (1-31; [-1] = every day)."""
-        if mdays and not all(d == -1 or 1 <= d <= 31 for d in mdays):
-            raise ValueError("mdays must be -1 or 1-31")
-        self.mdays = mdays
+        self.mdays = self._sanitize("mdays", mdays)
         return self
 
     def set_months(self, months: List[int]) -> "JobScheduleBuilder":
-        """Set months (1-12; [-1] = every month)."""
-        if months and not all(m == -1 or 1 <= m <= 12 for m in months):
-            raise ValueError("months must be -1 or 1-12")
-        self.months = months
+        self.months = self._sanitize("months", months)
         return self
 
     def set_wdays(self, wdays: List[int]) -> "JobScheduleBuilder":
-        """Set days of week (0=Sunday - 6=Saturday; [-1] = every day)."""
-        if wdays and not all(w == -1 or 0 <= w <= 6 for w in wdays):
-            raise ValueError("wdays must be -1 or 0-6")
-        self.wdays = wdays
+        self.wdays = self._sanitize("wdays", wdays)
         return self
 
+    # ---------------------------
+    # Build
+    # ---------------------------
+
     def build(self) -> JobSchedule:
-        """Build the schedule dictionary."""
+        """Return the final JobSchedule model."""
         return JobSchedule(
-            expiresAt=self.expires_at,
             timezone=self.timezone,
+            expiresAt=self.expires_at,
             hours=self.hours,
-            mdays=self.mdays,
             minutes=self.minutes,
+            mdays=self.mdays,
             months=self.months,
             wdays=self.wdays,
         )
@@ -280,7 +279,7 @@ class CronService:
             self.base_url,
             model=CreateJobResponse,
             method="PUT",
-            json={"job": job_data.model_dump(exclude_unset=True, mode='json')},
+            json={"job": job_data.model_dump(exclude_unset=True, mode="json")},
             headers=self._get_headers(),
         )
         if response is None:

@@ -28,34 +28,25 @@ logger = logging.getLogger(__name__)
 def verify_process_token(x_process_token: str = Header(alias="x-process-token")):
     """
     Verify the process token from request headers to prevent unauthorized access.
-    
+
     Args:
         x_process_token: Token from x-process-token header
-        
+
     Raises:
         HTTPException: If token is missing or invalid
     """
     if not config.reminders_process_token:
         logger.error("REMINDERS_PROCESS_TOKEN not configured in environment")
-        raise HTTPException(
-            status_code=500,
-            detail="Process token not configured"
-        )
-    
+        raise HTTPException(status_code=500, detail="Process token not configured")
+
     if not x_process_token:
         logger.warning("Process endpoint called without token")
-        raise HTTPException(
-            status_code=401,
-            detail="Missing authentication token"
-        )
-    
+        raise HTTPException(status_code=401, detail="Missing authentication token")
+
     if x_process_token != config.reminders_process_token:
         logger.warning(f"Process endpoint called with invalid token")
-        raise HTTPException(
-            status_code=403,
-            detail="Invalid authentication token"
-        )
-    
+        raise HTTPException(status_code=403, detail="Invalid authentication token")
+
     return True
 
 
@@ -64,13 +55,19 @@ async def create_reminder(
     data: CreateReminderDTO,
     db: DatabaseDep,
     reminder_service: ReminderServiceDep,
+    user_service: UserServiceDep,
     user_id: int = Query(..., description="User ID"),
 ):
     """Create a new reminder"""
     if user_id <= 0:
         raise ValidationError("User ID must be a positive integer")
 
-    reminder = await reminder_service.create_reminder(db, user_id, data)
+    user = await user_service.get_user_by_id(db, user_id)
+    user_timezone = user.timezone if user else "UTC"
+
+    reminder = await reminder_service.create_reminder(
+        db, user_id, data, user_timezone=user_timezone or "UTC"
+    )
     return ReminderResponseDTO.model_validate(reminder)
 
 
@@ -121,13 +118,19 @@ async def update_reminder(
     reminder_id: int,
     db: DatabaseDep,
     reminder_service: ReminderServiceDep,
+    user_service: UserServiceDep,
     user_id: int = Query(..., description="User ID"),
 ):
     """Update an existing reminder"""
     if user_id <= 0:
         raise ValidationError("User ID must be a positive integer")
 
-    reminder = await reminder_service.update_reminder(db, reminder_id, user_id, data)
+    user = await user_service.get_user_by_id(db, user_id)
+    user_timezone = user.timezone if user else "UTC"
+
+    reminder = await reminder_service.update_reminder(
+        db, reminder_id, user_id, data, user_timezone=user_timezone or "UTC"
+    )
     return ReminderResponseDTO.model_validate(reminder)
 
 
@@ -170,13 +173,19 @@ async def complete_reminder(
     reminder_id: int,
     db: DatabaseDep,
     reminder_service: ReminderServiceDep,
+    user_service: UserServiceDep,
     user_id: int = Query(..., description="User ID"),
 ):
     """Mark a reminder as completed (one-time) or schedule next occurrence (recurring)"""
     if user_id <= 0:
         raise ValidationError("User ID must be a positive integer")
 
-    reminder = await reminder_service.complete_reminder(db, reminder_id, user_id)
+    user = await user_service.get_user_by_id(db, user_id)
+    user_timezone = user.timezone if user else "UTC"
+
+    reminder = await reminder_service.complete_reminder(
+        db, reminder_id, user_id, user_timezone=user_timezone or "UTC"
+    )
     return ReminderResponseDTO.model_validate(reminder)
 
 
@@ -197,6 +206,7 @@ async def get_due_reminders(
 async def fix_overdue_reminders(
     db: DatabaseDep,
     reminder_service: ReminderServiceDep,
+    user_service: UserServiceDep,
     user_id: Optional[int] = Query(
         None,
         description="User ID to fix reminders for (optional, fixes all users if not provided)",
@@ -208,10 +218,12 @@ async def fix_overdue_reminders(
     This endpoint is useful after fixing bugs in the trigger calculation logic
     to update existing reminders that are stuck in an overdue state.
     """
-    if user_id is not None and user_id <= 0:
-        raise ValidationError("User ID must be a positive integer")
 
-    fixed_count = await reminder_service.fix_overdue_reminders(db, user_id)
+    user = await user_service.get_user_by_id(db, user_id) if user_id else None
+    user_timezone = user.timezone if user else "UTC"
+    fixed_count = await reminder_service.fix_overdue_reminders(
+        db, user_id, user_timezone=user_timezone or "UTC"
+    )
     return {
         "message": f"Fixed {fixed_count} overdue reminder(s)",
         "fixed_count": fixed_count,
@@ -219,26 +231,28 @@ async def fix_overdue_reminders(
     }
 
 
-@router.post("/process", status_code=200, dependencies=[Depends(verify_process_token)])
-async def process_reminders(
+# trigger reminder for given reminder id
+@router.post(
+    "/{reminder_id}/process",
+    status_code=200,
+    dependencies=[Depends(verify_process_token)],
+)
+async def process_triggered_reminder(
+    reminder_id: int,
     db: DatabaseDep,
     reminder_service: ReminderServiceDep,
     user_service: UserServiceDep,
     whatsapp_service: WhatsAppServiceDep,
-    limit: int = Query(100, ge=1, le=500, description="Maximum number of reminders to process"),
 ):
     """
-    Process all due reminders by sending notifications and updating their state.
-    This endpoint is designed to be called by a cron job every 2 minutes.
-    
+    Process a specific reminder by ID.
+    This endpoint is designed to be called by scheduled cron jobs.
+
     Requires authentication via X-Process-Token header to prevent unauthorized access.
-    
-    All dependencies are injected via FastAPI's dependency injection system
-    to avoid circular imports.
     """
-    return await reminder_service.process_reminders(
+    return await reminder_service.process_single_reminder(
         db=db,
+        reminder_id=reminder_id,
         user_service=user_service,
         whatsapp_service=whatsapp_service,
-        limit=limit,
     )

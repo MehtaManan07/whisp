@@ -87,7 +87,7 @@ async def fetch(
             ) as resp:
                 resp.raise_for_status()
                 data = await resp.json()
-
+                print(data)
                 if model is None:
                     return data
 

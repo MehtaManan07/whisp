@@ -79,7 +79,7 @@ class ReminderService:
             logger.info(f"Created reminder {reminder.id}")
 
             # Schedule cron job for the reminder
-            cron_job_id = await self.reminder_scheduler.schedule_cron_job(
+            cron_job_id = await self.reminder_scheduler.upsert_cron_job(
                 reminder, user_timezone
             )
             if cron_job_id:
@@ -195,7 +195,7 @@ class ReminderService:
 
             # Update cron job if it exists
             if reminder.cron_job_id:
-                await self.reminder_scheduler.update_cron_job(reminder, user_timezone)
+                await self.reminder_scheduler.upsert_cron_job(reminder, user_timezone)
 
             return reminder
 
@@ -333,7 +333,7 @@ class ReminderService:
             # Build query conditions
             conditions = [
                 Reminder.is_active == True,
-                Reminder.next_trigger_at <= utc_now(),
+                # Reminder.next_trigger_at <= utc_now(),
                 Reminder.deleted_at.is_(None),
                 Reminder.recurrence_type != "once",  # Only fix recurring reminders
             ]
@@ -410,96 +410,96 @@ class ReminderService:
             await db.rollback()
             raise
 
-    async def process_reminders(
+    async def process_single_reminder(
         self,
         db: AsyncSession,
+        reminder_id: int,
         user_service: "UsersService",
         whatsapp_service: "WhatsAppService",
-        limit: int = 100,
     ) -> dict[str, Any]:
         """
-        Process all due reminders by sending notifications and updating their state.
-        This function is designed to be called by a cron job every 2 minutes.
+        Process a specific reminder by ID.
+        This function is designed to be called by scheduled cron jobs.
 
         Args:
             db: Database session
+            reminder_id: ID of the reminder to process
             user_service: Injected user service instance
             whatsapp_service: Injected WhatsApp service instance
-            limit: Maximum number of reminders to process in one run
 
         Returns:
-            Summary of processed reminders
+            Summary of processed reminder
         """
         try:
-            # Get all due reminders
-            due_reminders = await self.get_due_reminders(db, limit)
+            # Get the specific reminder (without user_id check since this is a cron job)
+            result = await db.execute(
+                select(Reminder).where(
+                    and_(
+                        Reminder.id == reminder_id,
+                        Reminder.is_active == True,
+                        Reminder.deleted_at.is_(None),
+                    )
+                )
+            )
+            reminder = result.scalar_one_or_none()
 
-            if not due_reminders:
-                logger.info("No due reminders found")
+            if not reminder:
+                logger.warning(f"Reminder {reminder_id} not found or not active")
                 return {
-                    "status": "success",
+                    "status": "error",
+                    "message": f"Reminder {reminder_id} not found or not active",
                     "processed": 0,
-                    "message": "No due reminders",
                 }
 
-            processed_count = 0
-            error_count = 0
+            # Get the user with phone number
+            user = await user_service.get_user_by_id(db, reminder.user_id)
+            if not user or not user.phone_number:
+                logger.error(
+                    f"User {reminder.user_id} not found or has no phone number"
+                )
+                return {
+                    "status": "error",
+                    "message": f"User {reminder.user_id} not found or has no phone number",
+                    "processed": 0,
+                }
 
-            for reminder in due_reminders:
-                try:
-                    # Get the user with phone number
-                    user = await user_service.get_user_by_id(db, reminder.user_id)
-                    if not user or not user.phone_number:
-                        logger.error(
-                            f"User {reminder.user_id} not found or has no phone number"
-                        )
-                        error_count += 1
-                        continue
+            # Get user timezone
+            user_timezone = user_service.get_user_timezone(user) if user else "UTC"
 
-                    # Get user timezone
-                    user_timezone = (
-                        user_service.get_user_timezone(user) if user else "UTC"
-                    )
+            # Send WhatsApp notification
+            try:
+                message = f"🔔 Reminder: {reminder.title}"
+                if reminder.amount:
+                    message += f"\nAmount: ₹{reminder.amount:,.2f}"
+                if reminder.description:
+                    message += f"\n\n{reminder.description}"
 
-                    # Send WhatsApp notification
-                    try:
-                        message = f"🔔 Reminder: {reminder.title}"
-                        if reminder.amount:
-                            message += f"\nAmount: ₹{reminder.amount:,.2f}"
-                        if reminder.description:
-                            message += f"\n\n{reminder.description}"
+                await whatsapp_service.send_text(user.phone_number, message)
+                logger.info(f"Sent reminder {reminder.id} to user {user.phone_number}")
+            except Exception as e:
+                logger.error(
+                    f"Failed to send WhatsApp notification for reminder {reminder.id}: {e}"
+                )
+                return {
+                    "status": "error",
+                    "message": f"Failed to send notification: {str(e)}",
+                    "processed": 0,
+                }
 
-                        await whatsapp_service.send_text(user.phone_number, message)
-                        logger.info(
-                            f"Sent reminder {reminder.id} to user {user.phone_number}"
-                        )
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to send WhatsApp notification for reminder {reminder.id}: {e}"
-                        )
-                        error_count += 1
-                        continue
+            # Process the reminder (mark as triggered, schedule next if recurring)
+            await self.process_triggered_reminder(db, reminder, user_timezone)
 
-                    # Process the reminder (mark as triggered, schedule next if recurring)
-                    await self.process_triggered_reminder(db, reminder, user_timezone)
-                    processed_count += 1
-
-                except Exception as e:
-                    logger.error(f"Error processing reminder {reminder.id}: {e}")
-                    error_count += 1
-                    continue
-
-            logger.info(f"Processed {processed_count} reminders, {error_count} errors")
+            logger.info(f"Successfully processed reminder {reminder_id}")
 
             return {
                 "status": "success",
-                "processed": processed_count,
-                "errors": error_count,
-                "total_due": len(due_reminders),
+                "processed": 1,
+                "reminder_id": reminder_id,
+                "message": f"Successfully processed reminder {reminder_id}",
             }
 
         except Exception as e:
-            logger.error(f"Error in process_reminders: {e}")
+            logger.error(f"Error processing reminder {reminder_id}: {e}")
             return {
                 "status": "error",
                 "message": str(e),

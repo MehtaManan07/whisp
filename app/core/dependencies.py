@@ -67,7 +67,6 @@ def get_api_key_manager(keys: str = "", key_prefix: str = "llm_usage:"):
     cache_service = get_cache_service()
     return APIKeyManager(
         cache_service,
-        daily_limit=config.open_router_daily_limit,
         keys=keys,
         key_prefix=key_prefix,
     )
@@ -135,7 +134,9 @@ def get_reminder_service():
     """Reminder service - SINGLETON"""
     cron_service = get_cron_service()
     reminder_scheduler = ReminderScheduler(cron_service=cron_service)
-    return ReminderService(cron_service=cron_service, reminder_scheduler=reminder_scheduler)
+    return ReminderService(
+        cron_service=cron_service, reminder_scheduler=reminder_scheduler
+    )
 
 
 # ============================================================================

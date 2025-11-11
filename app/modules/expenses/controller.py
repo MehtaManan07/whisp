@@ -101,4 +101,5 @@ async def demo_intent(
         llm_service=llm_service,
         category_classifier=category_classifier,
     )
+    
     return (dto, intent)
