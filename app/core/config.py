@@ -29,11 +29,9 @@ class Config(BaseSettings):
 
     # LLM (Language Model) Configuration
     groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
-    open_router_api_key: str = Field(default="", alias="OPEN_ROUTER_API_KEY")
-    open_router_api_keys: str = Field(default="", alias="OPEN_ROUTER_API_KEYS")  # Comma-separated list of API keys
-    open_router_daily_limit: int = Field(default=50, alias="OPEN_ROUTER_DAILY_LIMIT")  # Daily limit per key
-    open_router_model_name: str = Field(
-        default="deepseek/deepseek-chat-v3-0324:free", alias="OPEN_ROUTER_MODEL_NAME"
+    gemini_key: str = Field(default="", alias="GEMINI_KEY")
+    gemini_model_name: str = Field(
+        default="gemini-2.0-flash", alias="GEMINI_MODEL_NAME"
     )
     is_production: bool = os.getenv("ENVIRONMENT", "development").lower() == "production"
     

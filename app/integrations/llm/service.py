@@ -3,11 +3,10 @@ import logging
 import re
 from typing import Dict, Any, Optional, List, Union
 from dataclasses import dataclass
-import httpx
 
 from app.core.config import config
 from app.core.exceptions import LLMServiceError
-from .key_manager import APIKeyManager
+from app.core.fetcher import fetch
 
 logger = logging.getLogger(__name__)
 
@@ -46,33 +45,22 @@ class LLMResponse:
 
 
 class LLMService:
-    """Service for making LLM calls via OpenRouter and Groq APIs."""
+    """Service for making LLM calls via Gemini and Groq APIs."""
 
     def __init__(
         self,
-        api_key_manager: APIKeyManager,
+        api_key_manager: Optional[Any] = None,
         api_key: Optional[str] = None,
         model_name: Optional[str] = None,
         timeout: float = 30.0,
-        base_url: str = "https://openrouter.ai/api/v1",
-        use_key_rotation: bool = True,
     ):
         """Initialize the LLM service."""
-        self.api_key_manager = api_key_manager
-        self.use_key_rotation = (
-            use_key_rotation and api_key is None and api_key_manager is not None
-        )
-        self.api_key = api_key
-        self.default_model = model_name or config.open_router_model_name
+        self.api_key = api_key or config.gemini_key
+        self.default_model = model_name or config.gemini_model_name
         self.timeout = timeout
-        self.base_url = base_url.rstrip("/")
 
-        if not self.use_key_rotation and not self.api_key:
-            self.api_key = config.open_router_api_key
-            if not self.api_key:
-                logger.warning(
-                    "OpenRouter API key not configured and key rotation disabled"
-                )
+        if not self.api_key:
+            logger.warning("Gemini API key not configured")
 
     async def complete(
         self,
@@ -83,6 +71,7 @@ class LLMService:
         **kwargs,
     ) -> LLMResponse:
         """Simple completion interface for single prompt requests."""
+        print(prompt)
         messages = [LLMMessage(role="user", content=prompt)]
         request = LLMRequest(
             messages=messages,
@@ -94,33 +83,15 @@ class LLMService:
         return await self.chat(request)
 
     async def chat(self, request: LLMRequest) -> LLMResponse:
-        """Main chat interface supporting conversation history using OpenRouter."""
-        # Get API key (either from rotation or fixed key)
-        if self.use_key_rotation:
-            key_result = self.api_key_manager.get_available_key()
-            if key_result is None:
-                raise LLMServiceError("All API keys have reached their daily limit")
-            current_api_key, key_index = key_result
-        else:
-            if not self.api_key:
-                raise LLMServiceError("OpenRouter API key not configured")
-            current_api_key = self.api_key
-            key_index = None
+        """Main chat interface supporting conversation history using Gemini."""
+        if not self.api_key:
+            raise LLMServiceError("Gemini API key not configured")
 
         # Build payload
-        payload = self._build_payload(request)
+        payload, model = self._build_gemini_payload(request)
 
         # Make the request
-        try:
-            response = await self._make_openrouter_request(payload, current_api_key)
-
-            # Record usage for key rotation
-            if self.use_key_rotation and key_index is not None:
-                self.api_key_manager.record_usage(key_index)
-
-            return response
-        except Exception:
-            raise
+        return await self._make_gemini_request(payload, model)
 
     async def complete_with_groq(
         self,
@@ -159,8 +130,8 @@ class LLMService:
     def _build_payload(
         self, request: LLMRequest, default_model: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Build API payload from request."""
-        model = request.model or default_model or self.default_model
+        """Build API payload from request (for Groq)."""
+        model = request.model or default_model or "llama-3.3-70b-versatile"
 
         payload = {
             "model": model,
@@ -183,44 +154,79 @@ class LLMService:
 
         return payload
 
-    async def _make_openrouter_request(
-        self, payload: Dict[str, Any], api_key: str
+    def _build_gemini_payload(
+        self, request: LLMRequest, default_model: Optional[str] = None
+    ) -> tuple[Dict[str, Any], str]:
+        """Build Gemini API payload from request."""
+        model = request.model or default_model or self.default_model
+
+        # Convert messages to Gemini format
+        contents = []
+        system_instruction = None
+        
+        for msg in request.messages:
+            if msg.role == "system":
+                system_instruction = msg.content
+            else:
+                # Gemini uses "user" and "model" roles (not "assistant")
+                role = "user" if msg.role == "user" else "model"
+                contents.append({
+                    "role": role,
+                    "parts": [{"text": msg.content}]
+                })
+
+        payload: Dict[str, Any] = {
+            "contents": contents
+        }
+
+        # Add system instruction if present
+        if system_instruction:
+            payload["systemInstruction"] = {
+                "parts": [{"text": system_instruction}]
+            }
+
+        # Add generation config
+        generation_config: Dict[str, Any] = {}
+        if request.max_tokens is not None:
+            generation_config["maxOutputTokens"] = request.max_tokens
+        if request.temperature is not None:
+            generation_config["temperature"] = request.temperature
+        if request.top_p is not None:
+            generation_config["topP"] = request.top_p
+        
+        if generation_config:
+            payload["generationConfig"] = generation_config
+
+        return payload, model
+
+    async def _make_gemini_request(
+        self, payload: Dict[str, Any], model: str
     ) -> LLMResponse:
-        """Make API request to OpenRouter."""
+        """Make API request to Gemini."""
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={self.api_key}"
+        
         headers = {
-            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://whisp.finance",
-            "X-Title": "Whisp Finance Assistant",
         }
 
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
-                    f"{self.base_url}/chat/completions",
-                    headers=headers,
-                    json=payload,
-                )
+            data = await fetch(
+                url,
+                model=None,
+                method="POST",
+                headers=headers,
+                json=payload,
+                timeout=self.timeout,
+            )
+            
+            if data is None:
+                raise LLMServiceError("Gemini API returned no response")
+            
+            return self._parse_gemini_response(data)
 
-                if response.status_code != 200:
-                    error_msg = f"HTTP {response.status_code}: {response.text}"
-                    logger.error(f"OpenRouter API error: {error_msg}")
-                    raise LLMServiceError(f"OpenRouter API error: {error_msg}")
-
-                data = response.json()
-                return self._parse_response(data)
-
-        except httpx.TimeoutException as e:
-            logger.error(f"OpenRouter request timeout: {str(e)}")
-            raise LLMServiceError(f"Request timed out: {str(e)}")
-
-        except httpx.RequestError as e:
-            logger.error(f"Network error during OpenRouter request: {str(e)}")
-            raise LLMServiceError(f"Network error: {str(e)}")
-
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON response from OpenRouter: {str(e)}")
-            raise LLMServiceError(f"Invalid response format: {str(e)}")
+        except Exception as e:
+            logger.error(f"Gemini API error: {str(e)}")
+            raise LLMServiceError(f"Gemini API error: {str(e)}")
 
     async def _make_groq_request(
         self, payload: Dict[str, Any], api_key: str
@@ -234,35 +240,79 @@ class LLMService:
         groq_url = "https://api.groq.com/openai/v1/chat/completions"
 
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
-                    groq_url,
-                    headers=headers,
-                    json=payload,
-                )
+            data = await fetch(
+                groq_url,
+                model=None,
+                method="POST",
+                headers=headers,
+                json=payload,
+                timeout=self.timeout,
+            )
+            
+            if data is None:
+                raise LLMServiceError("Groq API returned no response")
+            
+            return self._parse_response(data)
 
-                if response.status_code != 200:
-                    error_msg = f"HTTP {response.status_code}: {response.text}"
-                    logger.error(f"Groq API error: {error_msg}")
-                    raise LLMServiceError(f"Groq API error: {error_msg}")
+        except Exception as e:
+            logger.error(f"Groq API error: {str(e)}")
+            raise LLMServiceError(f"Groq API error: {str(e)}")
 
-                data = response.json()
-                return self._parse_response(data)
+    def _parse_gemini_response(self, data: Dict[str, Any]) -> LLMResponse:
+        """Parse the Gemini API response into an LLMResponse object."""
+        try:
+            if "candidates" not in data or not data["candidates"]:
+                raise LLMServiceError("No candidates in Gemini API response")
 
-        except httpx.TimeoutException as e:
-            logger.error(f"Groq request timeout: {str(e)}")
-            raise LLMServiceError(f"Groq request timed out: {str(e)}")
+            candidate = data["candidates"][0]
+            content_parts = candidate.get("content", {}).get("parts", [])
+            
+            if not content_parts:
+                raise LLMServiceError("No content parts in Gemini response")
 
-        except httpx.RequestError as e:
-            logger.error(f"Network error during Groq request: {str(e)}")
-            raise LLMServiceError(f"Groq network error: {str(e)}")
+            content = content_parts[0].get("text", "").strip()
 
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON response from Groq: {str(e)}")
-            raise LLMServiceError(f"Invalid Groq response format: {str(e)}")
+            # Remove special tokens that some models emit
+            content = self._clean_special_tokens(content)
+
+            if not content:
+                logger.warning("Empty content in LLM response")
+                content = "I apologize, but I couldn't generate a proper response. Please try again."
+
+            # Extract JSON from markdown code blocks if present
+            processed_content = self._extract_json_from_markdown(content)
+
+            # Extract usage info if available
+            usage = None
+            if "usageMetadata" in data:
+                usage_meta = data["usageMetadata"]
+                usage = {
+                    "prompt_tokens": usage_meta.get("promptTokenCount", 0),
+                    "completion_tokens": usage_meta.get("candidatesTokenCount", 0),
+                    "total_tokens": usage_meta.get("totalTokenCount", 0),
+                }
+
+            finish_reason = candidate.get("finishReason", "STOP")
+            # Map Gemini finish reasons to standard ones
+            if finish_reason == "STOP":
+                finish_reason = "stop"
+            elif finish_reason == "MAX_TOKENS":
+                finish_reason = "length"
+
+            return LLMResponse(
+                content=processed_content,
+                usage=usage,
+                model=data.get("model", self.default_model),
+                finish_reason=finish_reason,
+                raw_response=data,
+            )
+
+        except (KeyError, IndexError) as e:
+            logger.error(f"Unexpected Gemini response format: {data}")
+            raise LLMServiceError(f"Unexpected Gemini response format: {str(e)}")
 
     def _parse_response(self, data: Dict[str, Any]) -> LLMResponse:
-        """Parse the API response into an LLMResponse object."""
+        """Parse the API response into an LLMResponse object (for Groq)."""
         try:
             if "choices" not in data or not data["choices"]:
                 raise LLMServiceError("No choices in API response")
@@ -420,50 +470,7 @@ class LLMService:
         """Get information about the current model configuration."""
         info = {
             "default_model": self.default_model,
-            "base_url": self.base_url,
             "timeout": str(self.timeout),
-            "use_key_rotation": self.use_key_rotation,
+            "api_key_configured": bool(self.api_key),
         }
-
-        if self.use_key_rotation:
-            info.update(
-                {
-                    "total_available_requests": (
-                        self.api_key_manager.get_total_available_requests()
-                        if self.api_key_manager
-                        else 0
-                    ),
-                    "number_of_keys": (
-                        len(self.api_key_manager._api_keys)
-                        if self.api_key_manager
-                        else 0
-                    ),
-                    "daily_limit_per_key": (
-                        self.api_key_manager.daily_limit if self.api_key_manager else 0
-                    ),
-                }
-            )
-        else:
-            info["api_key_configured"] = bool(self.api_key)
-
         return info
-
-    def get_key_usage_info(self) -> List[Dict[str, Union[str, int, bool]]]:
-        """Get detailed usage information for all API keys (key rotation only)."""
-        if not self.use_key_rotation:
-            return [{"error": "Key rotation is disabled"}]
-
-        key_info = (
-            self.api_key_manager.get_all_key_info() if self.api_key_manager else []
-        )
-        return [
-            {
-                "key_index": info.key_index,
-                "masked_key": info.key,
-                "usage_today": info.usage_today,
-                "daily_limit": info.daily_limit,
-                "remaining_requests": info.remaining_requests,
-                "is_available": info.is_available,
-            }
-            for info in key_info
-        ]

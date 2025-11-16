@@ -76,7 +76,7 @@ def get_api_key_manager(keys: str = "", key_prefix: str = "llm_usage:"):
 def get_llm_service():
     """LLM service - SINGLETON (stateless)"""
     api_key_manager = get_api_key_manager(
-        keys=config.open_router_api_keys, key_prefix="llm_usage:"
+        keys=config.gemini_key, key_prefix="llm_usage:"
     )
     return LLMService(api_key_manager=api_key_manager)
 
