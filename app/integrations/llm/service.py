@@ -71,7 +71,6 @@ class LLMService:
         **kwargs,
     ) -> LLMResponse:
         """Simple completion interface for single prompt requests."""
-        print(prompt)
         messages = [LLMMessage(role="user", content=prompt)]
         request = LLMRequest(
             messages=messages,
