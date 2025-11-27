@@ -16,9 +16,12 @@ INTENT_PATTERNS = {
     # Queries - second most common (20-30%)
     r"\b(how much|total|show|list|view|display)\b.*(expense|spending|spent)": "VIEW_EXPENSES",
     r"\b(spending|spent).*\b(this|last|current)\s+(week|month|year)": "VIEW_EXPENSES",
-    # Budget management
+    # Budget management - specific patterns first
+    r"\b(update|change|modify)\s+(my\s+)?budget": "UPDATE_BUDGET",
+    r"\b(delete|remove|cancel)\s+(my\s+)?budget": "DELETE_BUDGET",
+    r"\b(budget\s+progress|budget\s+status|how.*budget)": "VIEW_BUDGET_PROGRESS",
     r"\b(set|create|add|make)\s+(a\s+)?budget\b": "SET_BUDGET",
-    r"\b(check|view|show|get)\s+(my\s+)?budget": "VIEW_BUDGET",
+    r"\b(check|view|show|get|list)\s+(my\s+)?budget": "VIEW_BUDGET",
     # Goals
     r"\b(set|create)\s+(a\s+)?goal\b": "SET_GOAL",
     r"\b(view|show|check)\s+(my\s+)?goals?\b": "VIEW_GOALS",
@@ -44,6 +47,9 @@ Examples:
 "I spent 500 on groceries today." → {{"intent": "log_expense"}}
 "Show me my expenses for last week." → {{"intent": "view_expenses"}}
 "Set my food budget to 10000." → {{"intent": "set_budget"}}
+"Show my budget status." → {{"intent": "view_budget_progress"}}
+"Update my food budget to 6000." → {{"intent": "update_budget"}}
+"Delete my entertainment budget." → {{"intent": "delete_budget"}}
 "Remind me to pay rent on 1st." → {{"intent": "set_reminder"}}
 "Show me all my reminders." → {{"intent": "view_reminders"}}
 

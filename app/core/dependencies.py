@@ -21,6 +21,7 @@ from app.modules.reminders.scheduler import ReminderScheduler
 from app.modules.users.service import UsersService
 from app.modules.reminders.service import ReminderService
 from app.modules.categories.service import CategoriesService
+from app.modules.budgets.service import BudgetService
 from app.intelligence.intent.classifier import IntentClassifier
 from app.intelligence.categorization.classifier import CategoryClassifier
 from app.core.orchestrator import MessageOrchestrator
@@ -108,10 +109,10 @@ def get_user_service():
     return UsersService()
 
 
-# @lru_cache()
-# def get_budget_service():
-#     """Budget service - SINGLETON"""
-#     return BudgetsService()
+@lru_cache()
+def get_budget_service():
+    """Budget service - SINGLETON"""
+    return BudgetService()
 
 
 @lru_cache()
@@ -193,6 +194,7 @@ LLMServiceDep = Annotated[LLMService, Depends(get_llm_service)]
 WhatsAppServiceDep = Annotated[WhatsAppService, Depends(get_whatsapp_service)]
 ExpenseServiceDep = Annotated[ExpensesService, Depends(get_expense_service)]
 UserServiceDep = Annotated[UsersService, Depends(get_user_service)]
+BudgetServiceDep = Annotated[BudgetService, Depends(get_budget_service)]
 CategoryServiceDep = Annotated[CategoriesService, Depends(get_category_service)]
 ReminderServiceDep = Annotated[ReminderService, Depends(get_reminder_service)]
 CategoryClassifierDep = Annotated[CategoryClassifier, Depends(get_category_classifier)]

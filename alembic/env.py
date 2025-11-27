@@ -13,6 +13,7 @@ from app.modules.users.models import User
 from app.modules.expenses.models import Expense
 from app.modules.categories.models import Category
 from app.modules.reminders.models import Reminder
+from app.modules.budgets.models import Budget
 
 # Load environment variables from .env file
 load_dotenv()
