@@ -28,6 +28,7 @@ class GetAllExpensesModel(BaseModel):
     subcategory_name: Optional[str] = Field(None, description="Filter by subcategory name")
     start_amount: Optional[float] = Field(None, description="Filter expenses with minimum amount")
     end_amount: Optional[float] = Field(None, description="Filter expenses with maximum amount")
+    note: Optional[str] = Field(None, description="Filter by note content (case-insensitive partial match)")
     aggregation_type: Optional[Literal["sum", "count", "avg", "min", "max"]] = Field(
         None, description="Type of aggregation to apply (sum, count, avg, min, max)"
     )

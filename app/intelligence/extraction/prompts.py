@@ -115,6 +115,19 @@ def build_dto_prompt(message: str, intent: IntentType, user_id: int) -> str:
 - "show my food budget" → {"user_id": 1, "category_name": "food"}
 - "what's my budget status" → {"user_id": 1}
 """
+    
+    # --- Expense query guidance ---
+    expense_query_guidance = ""
+    if intent == IntentType.VIEW_EXPENSES:
+        expense_query_guidance = """
+### Expense Query Guidance:
+- **note**: Extract keywords from phrases like "expenses with note", "expenses containing", "expenses about", etc.
+- **Examples**:
+  - "show expenses with note 'dinner'" → {"user_id": 1, "note": "dinner"}
+  - "find expenses containing uber" → {"user_id": 1, "note": "uber"}
+  - "expenses about birthday gift" → {"user_id": 1, "note": "birthday gift"}
+  - "show all expenses with note meeting" → {"user_id": 1, "note": "meeting"}
+"""
 
     # --- Final prompt string ---
     return f"""
@@ -131,7 +144,7 @@ You are an expert assistant that converts user messages into a JSON object that 
 - All date-related fields must be parsed into **ISO 8601 datetime format** (e.g., `2025-08-24T00:00:00`). You might get a relative date, so you need to parse it and do the math yourself. Today's date and time is {current_time}.
 - **CRITICAL**: Always include the `user_id` field in your JSON response with the value: {user_id}
 - **IMPORTANT**: If recurrence_type is NOT "once", then recurrence_config MUST be provided with at least a "time" field (HH:MM format).
-{budget_guidance}
+{budget_guidance}{expense_query_guidance}
 
 ---
 

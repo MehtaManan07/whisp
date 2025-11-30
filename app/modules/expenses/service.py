@@ -77,6 +77,8 @@ class ExpensesService:
 
         if data.vendor:
             query = query.where(Expense.vendor == data.vendor.lower())
+        if data.note:
+            query = query.where(Expense.note.ilike(f"%{data.note}%"))
         if start_date:
             query = query.where(Expense.timestamp >= start_date)
         if end_date:
