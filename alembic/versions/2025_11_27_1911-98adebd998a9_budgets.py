@@ -27,7 +27,7 @@ def upgrade() -> None:
     sa.Column('category_id', sa.Integer(), nullable=True),
     sa.Column('period', sa.String(length=20), nullable=False),
     sa.Column('amount', sa.Float(), nullable=False),
-    sa.Column('alert_thresholds', postgresql.ARRAY(sa.Float()), nullable=False),
+    sa.Column('alert_thresholds', sa.JSON(), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),

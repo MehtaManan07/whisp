@@ -29,7 +29,7 @@ def upgrade() -> None:
     sa.Column('amount', sa.Numeric(precision=10, scale=2), nullable=True),
     sa.Column('category_id', sa.Integer(), nullable=True),
     sa.Column('recurrence_type', sa.String(length=20), nullable=False),
-    sa.Column('recurrence_config', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('recurrence_config', sa.JSON(), nullable=True),
     sa.Column('next_trigger_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('last_triggered_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=False),

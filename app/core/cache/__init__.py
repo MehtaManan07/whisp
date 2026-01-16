@@ -1,4 +1,4 @@
 from .service import CacheService
-from .redis_client import RedisClient
+from .sqlite_cache_client import SQLiteCacheClient
 
-__all__ = ["CacheService", "RedisClient"]
+__all__ = ["CacheService", "SQLiteCacheClient"]

@@ -45,7 +45,7 @@ if [ -z "$APP_ACCESS_TOKEN" ]; then
   exit 1
 fi
 
-echo "✅ App access token fetched successfully"
+echo "✅ App access token fetched successfully" $APP_ACCESS_TOKEN
 echo ""
 
 # Set up webhook subscription

@@ -1,30 +1,30 @@
 from typing import Any, List, Optional
 import json
 import logging
-from .redis_client import RedisClient
+from .sqlite_cache_client import SQLiteCacheClient
 
 
 class CacheService:
-    """Cache service for Redis operations."""
+    """Cache service for SQLite-based caching operations."""
 
-    def __init__(self, redis_client: RedisClient):
+    def __init__(self, cache_client: SQLiteCacheClient):
         """
         Initialize the cache service.
 
         Args:
-            redis_client: RedisClient instance injected via FastAPI dependencies.
+            cache_client: SQLiteCacheClient instance injected via FastAPI dependencies.
         """
-        self._redis_client = redis_client
+        self._cache_client = cache_client
 
-    def _ensure_redis_connected(self) -> bool:
-        """Ensure Redis is connected, return False if not available."""
-        if not self._redis_client.is_connected:
-            return False
-        return True
+    async def _ensure_cache_connected(self) -> bool:
+        """Ensure cache is connected, return False if not available."""
+        if not self._cache_client.is_connected:
+            await self._cache_client.initialize()
+        return self._cache_client.is_connected
 
-    def set_key(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
+    async def set_key(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
         """
-        Set a key-value pair in Redis with optional TTL.
+        Set a key-value pair in cache with optional TTL.
 
         Args:
             key: The key to set
@@ -34,39 +34,37 @@ class CacheService:
         Returns:
             bool: True if successful, False otherwise
         """
-        if not self._ensure_redis_connected():
+        if not await self._ensure_cache_connected():
             return False
 
         try:
             # Serialize value to JSON
             serialized_value = json.dumps(value)
-
-            if ttl:
-                self._redis_client.client.setex(key, ttl, serialized_value)
-            else:
-                self._redis_client.client.set(key, serialized_value)
-
-            return True
+            return await self._cache_client.set(key, serialized_value, ttl)
 
         except Exception as e:
             return False
 
-    def set_key_ex(self, key: str, value: Any, ttl: int) -> bool:
+    async def set_key_ex(self, key: str, value: Any, ttl: int) -> bool:
         """
-        Set a key-value pair in Redis with optional TTL.
+        Set a key-value pair in cache with TTL.
         """
-        if not self._ensure_redis_connected():
+        if not await self._ensure_cache_connected():
             return False
 
         try:
-            self._redis_client.client.setex(key, ttl, value)
-            return True
+            # If value is already a string, use it directly
+            if isinstance(value, str):
+                return await self._cache_client.set(key, value, ttl)
+            else:
+                serialized_value = json.dumps(value)
+                return await self._cache_client.set(key, serialized_value, ttl)
         except Exception as e:
             return False
 
-    def get_key(self, key: str) -> Any:
+    async def get_key(self, key: str) -> Any:
         """
-        Get a value from Redis by key.
+        Get a value from cache by key.
 
         Args:
             key: The key to retrieve
@@ -74,11 +72,11 @@ class CacheService:
         Returns:
             Any: The deserialized value, or None if key doesn't exist or error occurs
         """
-        if not self._ensure_redis_connected():
+        if not await self._ensure_cache_connected():
             return None
 
         try:
-            value = self._redis_client.client.get(key)
+            value = await self._cache_client.get(key)
             if value is None:
                 return None
 
@@ -88,9 +86,9 @@ class CacheService:
         except Exception as e:
             return None
 
-    def delete_key(self, key: str) -> bool:
+    async def delete_key(self, key: str) -> bool:
         """
-        Delete a key from Redis.
+        Delete a key from cache.
 
         Args:
             key: The key to delete
@@ -98,17 +96,17 @@ class CacheService:
         Returns:
             bool: True if key was deleted, False otherwise
         """
-        if not self._ensure_redis_connected():
+        if not await self._ensure_cache_connected():
             return False
 
         try:
-            result = self._redis_client.client.delete(key)
+            result = await self._cache_client.delete(key)
             return result > 0
 
         except Exception as e:
             return False
 
-    def increment_key(self, key: str, amount: int = 1) -> Optional[int]:
+    async def increment_key(self, key: str, amount: int = 1) -> Optional[int]:
         """
         Increment a numeric key by the specified amount.
 
@@ -119,21 +117,21 @@ class CacheService:
         Returns:
             int: The new value after increment, or None if error occurs
         """
-        if not self._ensure_redis_connected():
+        if not await self._ensure_cache_connected():
             return None
 
         try:
             if amount == 1:
-                result = self._redis_client.client.incr(key)
+                result = await self._cache_client.incr(key)
             else:
-                result = self._redis_client.client.incrby(key, amount)
+                result = await self._cache_client.incrby(key, amount)
 
             return result
 
         except Exception as e:
             return None
 
-    def get_keys_by_pattern(self, pattern: str) -> List[str]:
+    async def get_keys_by_pattern(self, pattern: str) -> List[str]:
         """
         Get all keys matching a pattern.
 
@@ -143,19 +141,19 @@ class CacheService:
         Returns:
             List[str]: List of matching keys, empty list if error occurs
         """
-        if not self._ensure_redis_connected():
+        if not await self._ensure_cache_connected():
             return []
 
         try:
-            keys = self._redis_client.client.keys(pattern)
+            keys = await self._cache_client.keys(pattern)
             return keys
 
         except Exception as e:
             return []
 
-    def exists(self, key: str) -> bool:
+    async def exists(self, key: str) -> bool:
         """
-        Check if a key exists in Redis.
+        Check if a key exists in cache.
 
         Args:
             key: The key to check
@@ -163,32 +161,32 @@ class CacheService:
         Returns:
             bool: True if key exists, False otherwise
         """
-        if not self._ensure_redis_connected():
+        if not await self._ensure_cache_connected():
             return False
 
         try:
-            result = self._redis_client.client.exists(key)
+            result = await self._cache_client.exists(key)
             return result > 0
 
         except Exception as e:
             return False
 
-    def expire_key(self, key: str, time: int) -> bool:
+    async def expire_key(self, key: str, time: int) -> bool:
         """
-        Mark a key as expired in redis
+        Mark a key as expired in cache
 
         Args:
             key: The key to expire
-            time: when to expire a key
+            time: when to expire a key (in seconds)
 
         Returns:
             bool: True if key is set to expire, False otherwise
         """
-        if not self._ensure_redis_connected():
+        if not await self._ensure_cache_connected():
             return False
 
         try:
-            result = self._redis_client.client.expire(key, time)
+            result = await self._cache_client.expire(key, time)
             return result > 0
 
         except Exception as e:

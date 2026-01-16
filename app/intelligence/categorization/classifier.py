@@ -97,7 +97,7 @@ class CategoryClassifier:
 
         # Tier 3: Cache lookup (merchant seen before)
         cache_key = self._get_cache_key(merchant)
-        if cached := self._get_from_cache(cache_key):
+        if cached := await self._get_from_cache(cache_key):
             return ClassificationResult(
                 category=cached["category"],
                 subcategory=cached["subcategory"],
@@ -109,7 +109,7 @@ class CategoryClassifier:
         result = await self._classify_by_llm(text, amount)
 
         # Cache the result for future use
-        self._save_to_cache(cache_key, result)
+        await self._save_to_cache(cache_key, result)
 
         return ClassificationResult(
             category=result["category"],
@@ -162,7 +162,7 @@ class CategoryClassifier:
         # Check user's history for this merchant
         cache_key = f"user_merchant:{user_id}:{merchant.lower()}"
 
-        if cached := self._get_from_cache(cache_key):
+        if cached := await self._get_from_cache(cache_key):
             return cached
 
         # TODO: Query database for user's past transactions with this merchant
@@ -179,13 +179,13 @@ class CategoryClassifier:
         merchant_hash = hashlib.md5(merchant.lower().encode()).hexdigest()
         return f"merchant_cat:{merchant_hash}"
 
-    def _get_from_cache(self, key: Optional[str]) -> Optional[CacheableClassification]:
-        """Retrieve classification from Redis cache"""
+    async def _get_from_cache(self, key: Optional[str]) -> Optional[CacheableClassification]:
+        """Retrieve classification from cache"""
         if not key:
             return None
 
         try:
-            cached = self.cache.get_key(key)
+            cached = await self.cache.get_key(key)
             if cached:
                 return cached
         except Exception as e:
@@ -194,16 +194,16 @@ class CategoryClassifier:
 
         return None
 
-    def _save_to_cache(
+    async def _save_to_cache(
         self, key: Optional[str], data: CacheableClassification, ttl: int = 86400 * 90
     ) -> None:
-        """Save classification to Redis cache (90 days default)"""
+        """Save classification to cache (90 days default)"""
         if not key:
             return
 
         try:
             # data is already a CacheableClassification, so we can use it directly
-            self.cache.set_key(key, data, ttl)
+            await self.cache.set_key(key, data, ttl)
         except Exception as e:
             logger.warning(f"Cache save error: {e}")
 
@@ -248,7 +248,7 @@ class CategoryClassifier:
                 "confidence": 0.3,
             }
 
-    def learn_from_correction(
+    async def learn_from_correction(
         self,
         user_id: int,
         merchant: str,
@@ -265,7 +265,7 @@ class CategoryClassifier:
 
         # Update user-specific pattern
         user_cache_key = f"user_merchant:{user_id}:{merchant.lower()}"
-        self._save_to_cache(
+        await self._save_to_cache(
             user_cache_key,
             correction_data,
             ttl=86400 * 90,  # 90 days
@@ -280,7 +280,7 @@ class CategoryClassifier:
 
         merchant_cache_key = self._get_cache_key(merchant)
         if merchant_cache_key:
-            self._save_to_cache(
+            await self._save_to_cache(
                 merchant_cache_key,
                 global_correction_data,
                 ttl=86400 * 30,  # 30 days for global patterns

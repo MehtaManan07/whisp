@@ -10,7 +10,7 @@ from fastapi import Depends
 
 
 from app.core.config import config
-from app.core.cache.redis_client import RedisClient
+from app.core.cache.sqlite_cache_client import SQLiteCacheClient
 from app.core.cache.service import CacheService
 from app.core.db.engine import get_db_util
 from app.integrations.llm.key_manager import APIKeyManager
@@ -48,16 +48,16 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 @lru_cache()
-def get_redis():
-    """Redis client - SINGLETON"""
-    return RedisClient()
+def get_sqlite_cache_client():
+    """SQLite cache client - SINGLETON"""
+    return SQLiteCacheClient(config.cache_db_path)
 
 
 @lru_cache()
 def get_cache_service():
     """Cache service - SINGLETON"""
-    redis_client = get_redis()
-    return CacheService(redis_client)
+    cache_client = get_sqlite_cache_client()
+    return CacheService(cache_client)
 
 
 @lru_cache()

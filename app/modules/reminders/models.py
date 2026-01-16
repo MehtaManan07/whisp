@@ -2,9 +2,8 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional, Any
-from sqlalchemy import ForeignKey, Numeric, String, DateTime, Text, Boolean, Index
+from sqlalchemy import ForeignKey, Numeric, String, DateTime, Text, Boolean, Index, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import JSONB
 from app.utils.datetime import utc_now
 
 
@@ -37,7 +36,7 @@ class Reminder(BaseModel):
     recurrence_type: Mapped[str] = mapped_column(
         String(20), nullable=False
     )  # once, daily, weekly, monthly, yearly
-    recurrence_config: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)  # Additional recurrence parameters
+    recurrence_config: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)  # Additional recurrence parameters
 
     # Scheduling
     next_trigger_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)

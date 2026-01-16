@@ -1,17 +1,17 @@
 from typing import AsyncGenerator
 from app.core.config import config as settings
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import StaticPool
 
 
-# Async SQLAlchemy engine - similar to TypeORM DataSource
+# Async SQLAlchemy engine for SQLite
+# SQLite requires StaticPool for async operations to work correctly
 engine = create_async_engine(
     settings.db_url,
     echo=False,
-    poolclass=(
-        NullPool if not (settings.is_production) else None
-    ),  # Disable pooling in debug
+    poolclass=StaticPool,  # SQLite with async requires StaticPool
     future=True,  # Use SQLAlchemy 2.0 features
+    connect_args={"check_same_thread": False},  # Required for SQLite
 )
 
 # Session factory - similar to TypeORM's Repository pattern

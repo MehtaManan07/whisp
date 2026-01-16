@@ -75,38 +75,37 @@ class APIKeyManager:
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         return f"{self._key_prefix}:{today}:key_{key_index}"
 
-    def _get_key_usage_today(self, key_index: int) -> int:
+    async def _get_key_usage_today(self, key_index: int) -> int:
         """Get today's usage count for a specific key."""
-        redis_key = self._get_today_key(key_index)
-        usage = self.cache_service.get_key(redis_key)
+        cache_key = self._get_today_key(key_index)
+        usage = await self.cache_service.get_key(cache_key)
         return usage if usage is not None else 0
 
-    def _increment_key_usage(self, key_index: int) -> int:
+    async def _increment_key_usage(self, key_index: int) -> int:
         """Increment usage count for a key and return new count."""
-        redis_key = self._get_today_key(key_index)
+        cache_key = self._get_today_key(key_index)
 
         # Set TTL to expire at end of day (86400 seconds = 24 hours)
         # This ensures counters reset daily
-        new_count = self.cache_service.increment_key(redis_key, 1)
+        new_count = await self.cache_service.increment_key(cache_key, 1)
 
         if new_count == 1:  # First increment of the day
             # Set expiration to end of day
-            if self.cache_service._ensure_redis_connected():
-                try:
-                    # Calculate seconds until end of day
-                    now = datetime.now(timezone.utc)
-                    end_of_day = now.replace(
-                        hour=23, minute=59, second=59, microsecond=999999
-                    )
-                    seconds_until_eod = int((end_of_day - now).total_seconds()) + 1
+            try:
+                # Calculate seconds until end of day
+                now = datetime.now(timezone.utc)
+                end_of_day = now.replace(
+                    hour=23, minute=59, second=59, microsecond=999999
+                )
+                seconds_until_eod = int((end_of_day - now).total_seconds()) + 1
 
-                    self.cache_service.expire_key(redis_key, seconds_until_eod)
-                except Exception as e:
-                    logger.error(f"Failed to set expiration for {redis_key}: {e}")
+                await self.cache_service.expire_key(cache_key, seconds_until_eod)
+            except Exception as e:
+                logger.error(f"Failed to set expiration for {cache_key}: {e}")
 
         return new_count if new_count is not None else 1
 
-    def get_available_key(self) -> Optional[Tuple[str, int]]:
+    async def get_available_key(self) -> Optional[Tuple[str, int]]:
         """
         Get an available API key for making requests.
 
@@ -119,7 +118,7 @@ class APIKeyManager:
         # Try each key starting from current index
         for attempt in range(len(self._api_keys)):
             key_index = (self._current_key_index + attempt) % len(self._api_keys)
-            usage_today = self._get_key_usage_today(key_index)
+            usage_today = await self._get_key_usage_today(key_index)
 
             if usage_today < self.daily_limit:
                 # Found an available key
@@ -131,7 +130,7 @@ class APIKeyManager:
         # All keys exhausted
         return None
 
-    def record_usage(self, key_index: int) -> bool:
+    async def record_usage(self, key_index: int) -> bool:
         """
         Record usage for a specific key.
 
@@ -142,7 +141,7 @@ class APIKeyManager:
             bool: True if usage was recorded successfully
         """
         try:
-            new_count = self._increment_key_usage(key_index)
+            new_count = await self._increment_key_usage(key_index)
 
             # If this key is now at limit, move to next key for future requests
             if new_count >= self.daily_limit:
@@ -152,12 +151,12 @@ class APIKeyManager:
         except Exception as e:
             return False
 
-    def get_all_key_info(self) -> List[APIKeyInfo]:
+    async def get_all_key_info(self) -> List[APIKeyInfo]:
         """Get usage information for all configured keys."""
         key_info = []
 
         for i, api_key in enumerate(self._api_keys):
-            usage_today = self._get_key_usage_today(i)
+            usage_today = await self._get_key_usage_today(i)
             # Mask the API key for security (show only first 8 and last 4 characters)
             masked_key = (
                 f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
@@ -174,11 +173,11 @@ class APIKeyManager:
 
         return key_info
 
-    def get_total_available_requests(self) -> int:
+    async def get_total_available_requests(self) -> int:
         """Get total remaining requests across all keys today."""
         total_remaining = 0
         for i in range(len(self._api_keys)):
-            usage_today = self._get_key_usage_today(i)
+            usage_today = await self._get_key_usage_today(i)
             remaining = max(0, self.daily_limit - usage_today)
             total_remaining += remaining
 

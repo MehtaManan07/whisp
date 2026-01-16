@@ -1,7 +1,6 @@
 from typing import TYPE_CHECKING, Optional, List
-from sqlalchemy import ForeignKey, Float, Boolean, Index, Enum as SQLEnum, String
+from sqlalchemy import ForeignKey, Float, Boolean, Index, Enum as SQLEnum, String, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import ARRAY
 
 from app.core.db.base import BaseModel
 
@@ -35,7 +34,7 @@ class Budget(BaseModel):
     amount: Mapped[float] = mapped_column(Float, nullable=False)
 
     alert_thresholds: Mapped[List[float]] = mapped_column(
-        ARRAY(Float), nullable=False, default=[80, 100]
+        JSON, nullable=False, default=[80, 100]
     )
 
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

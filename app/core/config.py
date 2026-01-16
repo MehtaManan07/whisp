@@ -4,8 +4,17 @@ import os
 
 
 class Config(BaseSettings):
-    # Database Configuration
-    db_url: str = Field(default="", alias="DB_URL")
+    # Database Configuration - SQLite
+    db_url: str = Field(
+        default="sqlite+aiosqlite:///whisp.db", 
+        alias="DB_URL"
+    )
+    
+    # Cache Configuration - SQLite
+    cache_db_path: str = Field(
+        default="whisp_cache.db",
+        alias="CACHE_DB_PATH"
+    )
 
     # WhatsApp Configuration
     wa_verify_token: str = Field(default="", alias="WA_VERIFY_TOKEN")
@@ -15,12 +24,6 @@ class Config(BaseSettings):
     wa_app_secret: str = Field(default="", alias="WA_APP_SECRET")
     
     cron_keys: str = Field(default="", alias="CRON_KEYS")
-    
-    # Redis Configuration
-    redis_url: str = Field(default="", alias="UPSTASH_REDIS_REST_URL")
-    redis_token: str = Field(default="", alias="UPSTASH_REDIS_REST_TOKEN")
-    redis_host: str = Field(default="", alias="UPSTASH_REDIS_HOST")
-    redis_port: int = Field(default=0, alias="UPSTASH_REDIS_PORT")
 
     app_base_url: str = Field(default="", alias="APP_BASE_URL")  # Your app URL for webhook callbacks
     

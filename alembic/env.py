@@ -70,9 +70,11 @@ async def run_async_migrations() -> None:
     if not url:
         raise RuntimeError("No database URL configured")
 
+    # Use StaticPool for SQLite to avoid connection issues
     connectable = create_async_engine(
         url,
-        poolclass=pool.NullPool,
+        poolclass=pool.StaticPool if url.startswith("sqlite") else pool.NullPool,
+        connect_args={"check_same_thread": False} if url.startswith("sqlite") else {},
     )
 
     async with connectable.connect() as connection:

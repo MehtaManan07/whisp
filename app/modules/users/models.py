@@ -1,7 +1,6 @@
 from __future__ import annotations
 from datetime import datetime
-from sqlalchemy import String, Integer, DateTime
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import String, Integer, DateTime, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import List, Optional, Dict, Any, TYPE_CHECKING
 
@@ -47,7 +46,7 @@ class User(BaseModel):
         Integer, default=0, comment="Consecutive log days"
     )
 
-    meta: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
+    meta: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
 
     # Relationships - forward reference to avoid circular imports
     # Changed from lazy="selectin" to lazy="noload" to prevent loading ALL user's data

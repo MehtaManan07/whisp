@@ -38,7 +38,7 @@ def upgrade() -> None:
     sa.Column('phone_number', sa.String(), nullable=True),
     sa.Column('last_active', sa.DateTime(timezone=True), nullable=True, comment='For engagement reminders'),
     sa.Column('streak', sa.Integer(), nullable=False, comment='Consecutive log days'),
-    sa.Column('meta', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('meta', sa.JSON(), nullable=True),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
