@@ -10,11 +10,6 @@ class HELP_MESSAGES:
 - View today's summary: `/today`
 - Monthly summary: `/month`
 
-📊 *Budgets*
-- Set a budget: `/budget Food 5000`
-- View budgets: `/budgets`
-- Edit a budget: `/editbudget Food 6000`
-
 🎯 *Goals & Saving*
 - Set a goal: `/goal Save 20000 by December`
 - View goals: `/goals`

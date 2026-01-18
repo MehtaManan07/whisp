@@ -97,25 +97,6 @@ def build_dto_prompt(message: str, intent: IntentType, user_id: int) -> str:
             f"```json\n{json.dumps(ex, indent=2)}\n```" for ex in examples[:3]
         )
 
-    # --- Budget-specific guidance ---
-    budget_guidance = ""
-    if intent in [IntentType.SET_BUDGET, IntentType.UPDATE_BUDGET, IntentType.DELETE_BUDGET, IntentType.VIEW_BUDGET, IntentType.VIEW_BUDGET_PROGRESS]:
-        budget_guidance = """
-### Budget Extraction Guidance:
-- **period**: Extract time period from keywords like "daily", "weekly", "monthly", "yearly". Default to "monthly" if not specified.
-- **amount**: Extract numeric amount. Can be written as "50000", "50k", "50,000", etc.
-- **category_name**: Extract category if mentioned (e.g., "food budget", "entertainment budget"). Set to null for overall budgets.
-- **For UPDATE_BUDGET**: Extract budget_id from context or set to null if not explicitly mentioned.
-- **For DELETE_BUDGET**: Extract budget_id from context or set to null if not explicitly mentioned.
-
-### Examples:
-- "set monthly budget to 50000" → {"user_id": 1, "period": "monthly", "amount": 50000, "category_name": null}
-- "set 5000 food budget for this week" → {"user_id": 1, "period": "weekly", "amount": 5000, "category_name": "food"}
-- "set daily budget of 2000" → {"user_id": 1, "period": "daily", "amount": 2000, "category_name": null}
-- "show my food budget" → {"user_id": 1, "category_name": "food"}
-- "what's my budget status" → {"user_id": 1}
-"""
-    
     # --- Expense query guidance ---
     expense_query_guidance = ""
     if intent == IntentType.VIEW_EXPENSES:
@@ -144,7 +125,7 @@ You are an expert assistant that converts user messages into a JSON object that 
 - All date-related fields must be parsed into **ISO 8601 datetime format** (e.g., `2025-08-24T00:00:00`). You might get a relative date, so you need to parse it and do the math yourself. Today's date and time is {current_time}.
 - **CRITICAL**: Always include the `user_id` field in your JSON response with the value: {user_id}
 - **IMPORTANT**: If recurrence_type is NOT "once", then recurrence_config MUST be provided with at least a "time" field (HH:MM format).
-{budget_guidance}{expense_query_guidance}
+{expense_query_guidance}
 
 ---
 

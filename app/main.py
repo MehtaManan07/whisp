@@ -9,7 +9,6 @@ from app.modules.expenses.controller import router as expenses_router
 from app.modules.categories.controller import router as categories_router
 from app.modules.users.controller import router as users_router
 from app.modules.reminders.controller import router as reminders_router
-from app.modules.budgets.controller import router as budgets_router
 
 # Configure logging to output to console
 logging.basicConfig(
@@ -48,7 +47,6 @@ app.include_router(expenses_router)
 app.include_router(categories_router)
 app.include_router(users_router)
 app.include_router(reminders_router)
-app.include_router(budgets_router)
 
 
 @app.get("/demo")

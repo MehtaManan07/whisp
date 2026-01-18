@@ -6,7 +6,6 @@ from app.core.db.base import BaseModel
 
 if TYPE_CHECKING:
     from app.modules.expenses.models import Expense
-    from app.modules.budgets.models import Budget
 
 
 class Category(BaseModel):
@@ -38,10 +37,6 @@ class Category(BaseModel):
     # Prevents loading ALL expenses when fetching a category
     expenses: Mapped[List["Expense"]] = relationship(
         "Expense", back_populates="category", lazy="noload"
-    )
-
-    budgets: Mapped[List["Budget"]] = relationship(
-        "Budget", back_populates="category", lazy="noload"
     )
 
     @property

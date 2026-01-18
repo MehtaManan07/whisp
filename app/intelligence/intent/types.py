@@ -8,13 +8,6 @@ from app.modules.reminders.dto import (
     ListRemindersDTO,
     UpdateReminderDTO,
 )
-from app.modules.budgets.dto import (
-    CreateBudgetDTO,
-    GetBudgetDTO,
-    ViewBudgetProgressDTO,
-    UpdateBudgetDTO,
-    DeleteBudgetDTO,
-)
 
 
 class IntentType(str, Enum):
@@ -22,11 +15,6 @@ class IntentType(str, Enum):
 
     LOG_EXPENSE = "log_expense"  # Intent to log a new expense
     VIEW_EXPENSES = "view_expenses"  # Intent to view or filter expenses
-    SET_BUDGET = "set_budget"  # Intent to set a budget
-    VIEW_BUDGET = "view_budget"  # Intent to view budget
-    VIEW_BUDGET_PROGRESS = "view_budget_progress"  # Intent to see spending vs budget
-    UPDATE_BUDGET = "update_budget"  # Intent to modify existing budget
-    DELETE_BUDGET = "delete_budget"  # Intent to remove budget
     SET_GOAL = "set_goal"  # Intent to set a financial goal (not yet implemented)
     SET_REMINDER = "set_reminder"  # Intent to create or set a reminder
     VIEW_GOALS = "view_goals"  # Intent to view financial goals (not yet implemented)
@@ -41,11 +29,6 @@ DTO_UNION = Union[
     CreateReminderDTO,
     ListRemindersDTO,
     UpdateReminderDTO,
-    CreateBudgetDTO,
-    GetBudgetDTO,
-    ViewBudgetProgressDTO,
-    UpdateBudgetDTO,
-    DeleteBudgetDTO,
 ]
 
 INTENT_TO_DTO: Dict[IntentType, Type[DTO_UNION]] = {
@@ -54,11 +37,6 @@ INTENT_TO_DTO: Dict[IntentType, Type[DTO_UNION]] = {
     IntentType.SET_REMINDER: CreateReminderDTO,
     IntentType.VIEW_REMINDERS: ListRemindersDTO,
     IntentType.EDIT_REMINDER: UpdateReminderDTO,
-    IntentType.SET_BUDGET: CreateBudgetDTO,
-    IntentType.VIEW_BUDGET: GetBudgetDTO,
-    IntentType.VIEW_BUDGET_PROGRESS: ViewBudgetProgressDTO,
-    IntentType.UPDATE_BUDGET: UpdateBudgetDTO,
-    IntentType.DELETE_BUDGET: DeleteBudgetDTO,
 }
 
 CLASSIFIED_RESULT = Tuple[DTO_UNION | None, IntentType]
