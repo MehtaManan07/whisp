@@ -9,12 +9,6 @@ class Config(BaseSettings):
         default="sqlite+aiosqlite:///whisp.db", 
         alias="DB_URL"
     )
-    
-    # Cache Configuration - SQLite
-    cache_db_path: str = Field(
-        default="whisp_cache.db",
-        alias="CACHE_DB_PATH"
-    )
 
     # WhatsApp Configuration
     wa_verify_token: str = Field(default="", alias="WA_VERIFY_TOKEN")

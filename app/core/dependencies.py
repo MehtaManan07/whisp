@@ -7,12 +7,13 @@ from functools import lru_cache
 from typing import AsyncGenerator, Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
+from contextlib import asynccontextmanager
 
 
 from app.core.config import config
-from app.core.cache.sqlite_cache_client import SQLiteCacheClient
+from app.core.cache.sqlalchemy_cache_client import SQLAlchemyCacheClient
 from app.core.cache.service import CacheService
-from app.core.db.engine import get_db_util
+from app.core.db.engine import get_db_util, AsyncSessionLocal
 from app.integrations.llm.key_manager import APIKeyManager
 from app.integrations.llm.service import LLMService
 from app.integrations.whatsapp.service import WhatsAppService
@@ -46,16 +47,29 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 # ============================================================================
 
 
+@asynccontextmanager
+async def get_cache_db_session():
+    """Create a new database session for cache operations."""
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+
 @lru_cache()
-def get_sqlite_cache_client():
-    """SQLite cache client - SINGLETON"""
-    return SQLiteCacheClient(config.cache_db_path)
+def get_cache_client():
+    """SQLAlchemy cache client - SINGLETON"""
+    return SQLAlchemyCacheClient(db_session_factory=get_cache_db_session)
 
 
 @lru_cache()
 def get_cache_service():
     """Cache service - SINGLETON"""
-    cache_client = get_sqlite_cache_client()
+    cache_client = get_cache_client()
     return CacheService(cache_client)
 
 

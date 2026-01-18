@@ -1,26 +1,21 @@
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 import json
 import logging
-from .sqlite_cache_client import SQLiteCacheClient
+
+logger = logging.getLogger(__name__)
 
 
 class CacheService:
-    """Cache service for SQLite-based caching operations."""
+    """Cache service for caching operations."""
 
-    def __init__(self, cache_client: SQLiteCacheClient):
+    def __init__(self, cache_client):
         """
         Initialize the cache service.
 
         Args:
-            cache_client: SQLiteCacheClient instance injected via FastAPI dependencies.
+            cache_client: Cache client instance (SQLiteCacheClient or SQLAlchemyCacheClient)
         """
         self._cache_client = cache_client
-
-    async def _ensure_cache_connected(self) -> bool:
-        """Ensure cache is connected, return False if not available."""
-        if not self._cache_client.is_connected:
-            await self._cache_client.initialize()
-        return self._cache_client.is_connected
 
     async def set_key(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
         """
@@ -34,9 +29,6 @@ class CacheService:
         Returns:
             bool: True if successful, False otherwise
         """
-        if not await self._ensure_cache_connected():
-            return False
-
         try:
             # Serialize value to JSON
             serialized_value = json.dumps(value)
@@ -49,9 +41,6 @@ class CacheService:
         """
         Set a key-value pair in cache with TTL.
         """
-        if not await self._ensure_cache_connected():
-            return False
-
         try:
             # If value is already a string, use it directly
             if isinstance(value, str):
@@ -72,9 +61,6 @@ class CacheService:
         Returns:
             Any: The deserialized value, or None if key doesn't exist or error occurs
         """
-        if not await self._ensure_cache_connected():
-            return None
-
         try:
             value = await self._cache_client.get(key)
             if value is None:
@@ -96,9 +82,6 @@ class CacheService:
         Returns:
             bool: True if key was deleted, False otherwise
         """
-        if not await self._ensure_cache_connected():
-            return False
-
         try:
             result = await self._cache_client.delete(key)
             return result > 0
@@ -117,9 +100,6 @@ class CacheService:
         Returns:
             int: The new value after increment, or None if error occurs
         """
-        if not await self._ensure_cache_connected():
-            return None
-
         try:
             if amount == 1:
                 result = await self._cache_client.incr(key)
@@ -141,9 +121,6 @@ class CacheService:
         Returns:
             List[str]: List of matching keys, empty list if error occurs
         """
-        if not await self._ensure_cache_connected():
-            return []
-
         try:
             keys = await self._cache_client.keys(pattern)
             return keys
@@ -161,9 +138,6 @@ class CacheService:
         Returns:
             bool: True if key exists, False otherwise
         """
-        if not await self._ensure_cache_connected():
-            return False
-
         try:
             result = await self._cache_client.exists(key)
             return result > 0
@@ -182,9 +156,6 @@ class CacheService:
         Returns:
             bool: True if key is set to expire, False otherwise
         """
-        if not await self._ensure_cache_connected():
-            return False
-
         try:
             result = await self._cache_client.expire(key, time)
             return result > 0

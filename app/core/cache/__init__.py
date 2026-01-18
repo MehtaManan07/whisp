@@ -1,4 +1,5 @@
 from .service import CacheService
-from .sqlite_cache_client import SQLiteCacheClient
+from .sqlalchemy_cache_client import SQLAlchemyCacheClient
+from .models import Cache
 
-__all__ = ["CacheService", "SQLiteCacheClient"]
+__all__ = ["CacheService", "SQLAlchemyCacheClient", "Cache"]
