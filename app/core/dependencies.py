@@ -89,10 +89,7 @@ def get_api_key_manager(keys: str = "", key_prefix: str = "llm_usage:"):
 @lru_cache()
 def get_llm_service():
     """LLM service - SINGLETON (stateless)"""
-    api_key_manager = get_api_key_manager(
-        keys=config.gemini_key, key_prefix="llm_usage:"
-    )
-    return LLMService(api_key_manager=api_key_manager)
+    return LLMService(api_key=config.gemini_key)
 
 
 @lru_cache()

@@ -109,6 +109,11 @@ def format_relative_time(dt: datetime, user_timezone: str = "UTC") -> str:
     Returns:
         Human-readable relative time string
     """
+    # Ensure dt is timezone-aware
+    if dt.tzinfo is None:
+        # If naive, assume it's UTC
+        dt = dt.replace(tzinfo=timezone.utc)
+    
     now = utc_now()
     diff = dt - now
     

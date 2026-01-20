@@ -26,9 +26,9 @@ class Config(BaseSettings):
 
     # LLM (Language Model) Configuration
     groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
-    gemini_key: str = Field(default="", alias="GEMINI_KEY")
+    gemini_key: str = Field(default="", alias="GEMINI_API_KEY")
     gemini_model_name: str = Field(
-        default="gemini-2.0-flash", alias="GEMINI_MODEL_NAME"
+        default="gemini-3-flash-preview", alias="GEMINI_MODEL_NAME"
     )
     is_production: bool = os.getenv("ENVIRONMENT", "development").lower() == "production"
     

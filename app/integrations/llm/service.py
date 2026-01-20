@@ -4,6 +4,8 @@ import re
 from typing import Dict, Any, Optional, List, Union
 from dataclasses import dataclass
 
+from google import genai
+
 from app.core.config import config
 from app.core.exceptions import LLMServiceError
 from app.core.fetcher import fetch
@@ -59,7 +61,11 @@ class LLMService:
         self.default_model = model_name or config.gemini_model_name
         self.timeout = timeout
 
-        if not self.api_key:
+        # Initialize Google Gemini client
+        if self.api_key:
+            self.client = genai.Client(api_key=self.api_key)
+        else:
+            self.client = None
             logger.warning("Gemini API key not configured")
 
     async def complete(
@@ -82,15 +88,20 @@ class LLMService:
         return await self.chat(request)
 
     async def chat(self, request: LLMRequest) -> LLMResponse:
-        """Main chat interface supporting conversation history using Gemini."""
-        if not self.api_key:
-            raise LLMServiceError("Gemini API key not configured")
+        """Main chat interface supporting conversation history using Gemini with automatic Groq fallback."""
+        try:
+            if not self.api_key:
+                raise LLMServiceError("Gemini API key not configured")
 
-        # Build payload
-        payload, model = self._build_gemini_payload(request)
+            # Build payload
+            payload, model = self._build_gemini_payload(request)
 
-        # Make the request
-        return await self._make_gemini_request(payload, model)
+            # Make the request
+            return await self._make_gemini_request(payload, model)
+        except Exception as e:
+            # Automatic fallback to Groq on any Gemini failure
+            logger.warning(f"Gemini failed, falling back to Groq: {e}")
+            return await self.chat_with_groq(request)
 
     async def complete_with_groq(
         self,
@@ -155,8 +166,8 @@ class LLMService:
 
     def _build_gemini_payload(
         self, request: LLMRequest, default_model: Optional[str] = None
-    ) -> tuple[Dict[str, Any], str]:
-        """Build Gemini API payload from request."""
+    ) -> tuple[Any, str]:
+        """Build Gemini SDK payload from request."""
         model = request.model or default_model or self.default_model
 
         # Convert messages to Gemini format
@@ -174,54 +185,37 @@ class LLMService:
                     "parts": [{"text": msg.content}]
                 })
 
-        payload: Dict[str, Any] = {
-            "contents": contents
-        }
-
-        # Add system instruction if present
-        if system_instruction:
-            payload["systemInstruction"] = {
-                "parts": [{"text": system_instruction}]
-            }
-
-        # Add generation config
-        generation_config: Dict[str, Any] = {}
-        if request.max_tokens is not None:
-            generation_config["maxOutputTokens"] = request.max_tokens
-        if request.temperature is not None:
-            generation_config["temperature"] = request.temperature
-        if request.top_p is not None:
-            generation_config["topP"] = request.top_p
-        
-        if generation_config:
-            payload["generationConfig"] = generation_config
+        # For the SDK, if we only have a single user message, we can pass it as a string
+        # Otherwise, pass the full contents structure
+        if len(contents) == 1 and contents[0]["role"] == "user" and not system_instruction:
+            # Simple case: single user message
+            payload = contents[0]["parts"][0]["text"]
+        else:
+            # Complex case: multiple messages or system instruction
+            # The SDK accepts the contents directly (not wrapped in a dict)
+            payload = contents
 
         return payload, model
 
     async def _make_gemini_request(
         self, payload: Dict[str, Any], model: str
     ) -> LLMResponse:
-        """Make API request to Gemini."""
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={self.api_key}"
-        
-        headers = {
-            "Content-Type": "application/json",
-        }
+        """Make API request to Gemini using google-genai SDK."""
+        if not self.client:
+            raise LLMServiceError("Gemini client not initialized")
 
         try:
-            data = await fetch(
-                url,
-                model=None,
-                method="POST",
-                headers=headers,
-                json=payload,
-                timeout=self.timeout,
+            # Use the google-genai SDK
+            response = self.client.models.generate_content(
+                model=model,
+                contents=payload
             )
             
-            if data is None:
+            if not response or not response.text:
                 raise LLMServiceError("Gemini API returned no response")
             
-            return self._parse_gemini_response(data)
+            # Parse the SDK response
+            return self._parse_gemini_sdk_response(response)
 
         except Exception as e:
             logger.error(f"Gemini API error: {str(e)}")
@@ -256,6 +250,36 @@ class LLMService:
         except Exception as e:
             logger.error(f"Groq API error: {str(e)}")
             raise LLMServiceError(f"Groq API error: {str(e)}")
+
+    def _parse_gemini_sdk_response(self, response: Any) -> LLMResponse:
+        """Parse the Gemini SDK response into an LLMResponse object."""
+        try:
+            # Extract text from SDK response
+            content = response.text.strip()
+
+            # Remove special tokens that some models emit
+            content = self._clean_special_tokens(content)
+
+            if not content:
+                logger.warning("Empty content in LLM response")
+                content = "I apologize, but I couldn't generate a proper response. Please try again."
+
+            # Extract JSON from markdown code blocks if present
+            processed_content = self._extract_json_from_markdown(content)
+
+            # Note: SDK response doesn't provide detailed usage/metadata like REST API
+            # We'll return basic response without usage stats
+            return LLMResponse(
+                content=processed_content,
+                usage=None,
+                model=self.default_model,
+                finish_reason="stop",
+                raw_response=None,
+            )
+
+        except Exception as e:
+            logger.error(f"Unexpected Gemini SDK response format: {e}")
+            raise LLMServiceError(f"Unexpected Gemini SDK response format: {str(e)}")
 
     def _parse_gemini_response(self, data: Dict[str, Any]) -> LLMResponse:
         """Parse the Gemini API response into an LLMResponse object."""

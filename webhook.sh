@@ -22,7 +22,7 @@ fi
 if [ "$ENV" = "dev" ]; then
   WEBHOOK_URL=$URL
 elif [ "$ENV" = "prod" ]; then
-  WEBHOOK_URL="https://whisp-manan4276-eovlx63b.leapcell.dev"
+  WEBHOOK_URL="https://whisp-ai.duckdns.org"
 else
   echo "Usage: $0 [dev|prod]"
   exit 1
