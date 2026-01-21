@@ -5,36 +5,51 @@
 # Usage: ./deploy-app-prod.sh
 
 APP_NAME="fastapi"
-APP_DIR="/home/ec2-user/whisp"
-VENV_DIR="/home/ec2-user/whisp/venv"
+APP_DIR="/home/manmehta/whisp"
+VENV_DIR="/home/manmehta/whisp/venv"
+#!/usr/bin/env bash
+set -e
 
-echo "🚀 Deploying FastAPI app (PRODUCTION - EC2)..."
+APP_NAME="whisp"
+APP_DIR="/home/manmehta/whisp"
+VENV_DIR="/home/manmehta/whisp/venv"
+SERVICE_NAME="whisp"
+GIT_BRANCH="main"
+PYTHON_BIN="python3"
 
-echo "📥 Pulling latest changes..."
-cd $APP_DIR || exit
-git pull origin main
+echo "🚀 Deploying $APP_NAME..."
+
+cd "$APP_DIR"
+
+echo "📥 Pulling latest code..."
+git fetch origin
+git checkout "$GIT_BRANCH"
+git pull origin "$GIT_BRANCH"
+
+echo "🐍 Setting up virtual environment..."
+if [ ! -d "$VENV_DIR" ]; then
+  $PYTHON_BIN -m venv "$VENV_DIR"
+fi
+
+source "$VENV_DIR/bin/activate"
 
 echo "📦 Installing dependencies..."
-source $VENV_DIR/bin/activate
+pip install --upgrade pip
 pip install -r requirements.txt
 
-echo "🔄 Restarting FastAPI service..."
-sudo systemctl restart $APP_NAME
+echo "🗄️ Running database migrations..."
+if [ -f "alembic.ini" ]; then
+  alembic upgrade head
+else
+  echo "⚠️  No alembic.ini found, skipping migrations"
+fi
 
+echo "🔄 Reloading systemd + restarting app..."
+systemctl daemon-reload
+systemctl restart "$SERVICE_NAME"
+
+echo "🔄 Restarting FastAPI service..."
 echo "🌐 Restarting nginx..."
 sudo systemctl reload nginx
 
-echo "✅ Checking service status..."
-if sudo systemctl is-active --quiet $APP_NAME; then
-    echo "✅ FastAPI service is running"
-else
-    echo "❌ FastAPI service failed to start"
-    sudo systemctl status $APP_NAME --no-pager
-    exit 1
-fi
-
-echo "📄 Recent logs:"
-sudo journalctl -u $APP_NAME -n 10 --no-pager
-
-echo ""
-echo "✅ Production deployment complete!"
+echo "✅ Deployment complete!"
