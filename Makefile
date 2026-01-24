@@ -13,7 +13,7 @@ help:
 # Configs
 APP_MODULE=app.main:app
 HOST=127.0.0.1
-PORT=8000
+PORT=8001
 ALEMBIC=alembic
 ALEMBIC_CONFIG=alembic.ini
 
