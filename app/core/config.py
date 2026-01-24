@@ -47,6 +47,17 @@ class Config(BaseSettings):
     kraftculture_sender_email: str = Field(
         default="", alias="KRAFTCULTURE_SENDER_EMAIL"
     )
+    
+    # Scheduler Configuration (APScheduler)
+    scheduler_enabled: bool = Field(
+        default=True, alias="SCHEDULER_ENABLED"
+    )
+    scheduler_reminders_interval_minutes: int = Field(
+        default=1, alias="SCHEDULER_REMINDERS_INTERVAL_MINUTES"
+    )
+    scheduler_kraftculture_interval_minutes: int = Field(
+        default=5, alias="SCHEDULER_KRAFTCULTURE_INTERVAL_MINUTES"
+    )
 
     # Path to .env file (for loading env vars)
     class Config:

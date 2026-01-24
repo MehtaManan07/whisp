@@ -1,8 +1,12 @@
 import logging
 import sys
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.error_handler import global_exception_handler
+from app.core.config import config
+from app.core.scheduler.service import SchedulerService
+from app.core.scheduler.jobs import process_due_reminders, process_kraftculture_emails
 
 from app.integrations.whatsapp.controller import router as whatsapp_router
 from app.modules.expenses.controller import router as expenses_router
@@ -23,12 +27,58 @@ logging.basicConfig(
 
 # Set logger for your app
 logger = logging.getLogger(__name__)
-logger.info("🚀 Starting Whisp API...")
+
+# Scheduler instance (singleton)
+scheduler_service = SchedulerService()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Application lifespan handler.
+    Starts scheduler on startup, stops on shutdown.
+    """
+    logger.info("🚀 Starting Whisp API...")
+    
+    # Start scheduler if enabled
+    if config.scheduler_enabled:
+        scheduler_service.start()
+        
+        # Add reminders job
+        scheduler_service.add_interval_job(
+            func=process_due_reminders,
+            minutes=config.scheduler_reminders_interval_minutes,
+            job_id="process_due_reminders",
+        )
+        logger.info(
+            f"📅 Reminders job scheduled every {config.scheduler_reminders_interval_minutes} minute(s)"
+        )
+        
+        # Add kraftculture email job
+        scheduler_service.add_interval_job(
+            func=process_kraftculture_emails,
+            minutes=config.scheduler_kraftculture_interval_minutes,
+            job_id="process_kraftculture_emails",
+        )
+        logger.info(
+            f"📧 Kraftculture job scheduled every {config.scheduler_kraftculture_interval_minutes} minute(s)"
+        )
+    else:
+        logger.info("⏸️ Scheduler is disabled")
+    
+    yield  # App is running
+    
+    # Shutdown
+    logger.info("🛑 Shutting down Whisp API...")
+    if config.scheduler_enabled:
+        scheduler_service.shutdown()
+
 
 app = FastAPI(
     title="Whisp API",
     description="A messaging and user management API",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Add global exception handler

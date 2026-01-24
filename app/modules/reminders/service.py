@@ -4,13 +4,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, select
 import logging
 
-from app.core.cron.service import CronService
 from app.modules.reminders.models import Reminder
 
 if TYPE_CHECKING:
     from app.integrations.whatsapp.service import WhatsAppService
     from app.modules.users.service import UsersService
-from app.modules.reminders.scheduler import ReminderScheduler
 from app.modules.reminders.types import RecurrenceType, RecurrenceConfig
 from app.modules.reminders.dto import (
     CreateReminderDTO,
@@ -27,14 +25,8 @@ logger = logging.getLogger(__name__)
 class ReminderService:
     """Service for managing reminders."""
 
-    def __init__(
-        self,
-        cron_service: CronService,
-        reminder_scheduler: ReminderScheduler,
-    ):
+    def __init__(self):
         self.logger = logger
-        self.cron_service = cron_service
-        self.reminder_scheduler = reminder_scheduler
 
     async def create_reminder(
         self,
@@ -72,23 +64,12 @@ class ReminderService:
                 is_active=True,
             )
 
-            # Add reminder to session and flush to get ID
+            # Add reminder to session and commit
             db.add(reminder)
-            await db.flush()  # reminder.id is available without full commit
+            await db.commit()
+            await db.refresh(reminder)
 
             logger.info(f"Created reminder {reminder.id}")
-
-            # Schedule cron job for the reminder
-            cron_job_id = await self.reminder_scheduler.upsert_cron_job(
-                reminder, user_timezone
-            )
-            if cron_job_id:
-                reminder.cron_job_id = cron_job_id
-                await db.commit()
-                await db.refresh(reminder)
-                logger.info(
-                    f"Scheduled cron job {cron_job_id} for reminder {reminder.id}"
-                )
 
             return reminder
 
@@ -193,10 +174,6 @@ class ReminderService:
             await db.commit()
             await db.refresh(reminder)
 
-            # Update cron job if it exists
-            if reminder.cron_job_id:
-                await self.reminder_scheduler.upsert_cron_job(reminder, user_timezone)
-
             return reminder
 
         except Exception as e:
@@ -219,10 +196,6 @@ class ReminderService:
         reminder = await self.get_reminder(db, reminder_id, user_id)
 
         try:
-            # Delete cron job if it exists
-            if reminder.cron_job_id:
-                await self.reminder_scheduler.delete_cron_job(reminder.cron_job_id)
-
             reminder.deleted_at = utc_now()
             reminder.is_active = False
             await db.commit()
