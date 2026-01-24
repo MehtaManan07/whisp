@@ -17,7 +17,9 @@ from app.core.db.engine import get_db_util, AsyncSessionLocal
 from app.integrations.llm.key_manager import APIKeyManager
 from app.integrations.llm.service import LLMService
 from app.integrations.whatsapp.service import WhatsAppService
+from app.integrations.gmail.service import GmailService
 from app.modules.expenses.service import ExpensesService
+from app.modules.kraftculture.service import KraftcultureService
 from app.modules.reminders.scheduler import ReminderScheduler
 from app.modules.users.service import UsersService
 from app.modules.reminders.service import ReminderService
@@ -144,6 +146,38 @@ def get_reminder_service():
     )
 
 
+@lru_cache()
+def get_gmail_service():
+    """Gmail service - SINGLETON"""
+    return GmailService(
+        credentials_path=config.gmail_credentials_path,
+        token_path=config.gmail_token_path,
+    )
+
+
+@lru_cache()
+def get_kraftculture_service():
+    """Kraftculture service - SINGLETON"""
+    gmail_service = get_gmail_service()
+    whatsapp_service = get_whatsapp_service()
+    cache_service = get_cache_service()
+    
+    # Parse WhatsApp numbers from comma-separated config
+    whatsapp_numbers = [
+        n.strip() 
+        for n in config.kraftculture_whatsapp_numbers.split(",") 
+        if n.strip()
+    ]
+    
+    return KraftcultureService(
+        gmail_service=gmail_service,
+        whatsapp_service=whatsapp_service,
+        cache_service=cache_service,
+        default_sender_email=config.kraftculture_sender_email,
+        whatsapp_numbers=whatsapp_numbers,
+    )
+
+
 # ============================================================================
 # INTELLIGENCE LAYER (Singletons)
 # ============================================================================
@@ -208,3 +242,9 @@ CacheServiceDep = Annotated[CacheService, Depends(get_cache_service)]
 
 # Cron dependencies
 CronServiceDep = Annotated[CronService, Depends(get_cron_service)]
+
+# Gmail dependencies
+GmailServiceDep = Annotated[GmailService, Depends(get_gmail_service)]
+
+# Kraftculture dependencies
+KraftcultureServiceDep = Annotated[KraftcultureService, Depends(get_kraftculture_service)]

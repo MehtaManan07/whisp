@@ -123,6 +123,10 @@ celerybeat.pid
 .env
 .env.*
 .venv
+
+# Gmail OAuth tokens
+token.json
+credentials.json
 env/
 venv/
 ENV/

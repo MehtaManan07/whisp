@@ -32,8 +32,21 @@ class Config(BaseSettings):
     )
     is_production: bool = os.getenv("ENVIRONMENT", "development").lower() == "production"
     
+    # Gmail Configuration
+    gmail_credentials_path: str = Field(
+        default="credentials.json", alias="GMAIL_CREDENTIALS_PATH"
+    )
+    gmail_token_path: str = Field(
+        default="token.json", alias="GMAIL_TOKEN_PATH"
+    )
     
-    
+    # Kraftculture Configuration
+    kraftculture_whatsapp_numbers: str = Field(
+        default="919328483009", alias="KRAFTCULTURE_WHATSAPP_NUMBERS"
+    )
+    kraftculture_sender_email: str = Field(
+        default="", alias="KRAFTCULTURE_SENDER_EMAIL"
+    )
 
     # Path to .env file (for loading env vars)
     class Config:
