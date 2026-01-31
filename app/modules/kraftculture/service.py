@@ -259,62 +259,68 @@ class KraftcultureService:
         """
         parts = []
         
-        # Header
-        parts.append("🛒 *New Order Received*")
+        # Header with order ID
+        parts.append("🛒 *NEW ORDER*")
+        if parsed_data.order_id:
+            parts.append(f"Order #{parsed_data.order_id}")
         parts.append("")
         
-        # Order details
-        if parsed_data.order_id:
-            parts.append(f"📋 *Order ID:* {parsed_data.order_id}")
-        
-        if parsed_data.order_name:
-            parts.append(f"🏷️ *Order Name:* {parsed_data.order_name}")
-        
-        if parsed_data.payment_status:
-            parts.append(f"💳 *Payment:* {parsed_data.payment_status}")
-        
-        # Products section - show all items
+        # Products section - PROMINENTLY show product name and quantity first
         if parsed_data.items:
-            parts.append("")
-            parts.append(f"📦 *Products ({len(parsed_data.items)}):*")
-            for i, item in enumerate(parsed_data.items, 1):
-                # Format: 1. Product Name (SKU: XXX) - ₹500 x 2
-                item_parts = [f"   {i}. {item.product_name or 'Unknown Product'}"]
+            parts.append("*ITEMS:*")
+            parts.append("─" * 20)
+            for item in parsed_data.items:
+                # Product name in bold with quantity
+                product_name = item.product_name or "Unknown Product"
+                qty = item.quantity or "1"
+                parts.append(f"*{product_name}* × {qty}")
+                
+                # Price and SKU on next line (smaller details)
+                details = []
+                if item.price:
+                    details.append(f"₹ {item.price.replace('₹', '').strip()}")
                 if item.sku:
-                    item_parts.append(f"(SKU: {item.sku})")
-                if item.price or item.quantity:
-                    price_qty = []
-                    if item.price:
-                        price_qty.append(item.price)
-                    if item.quantity:
-                        price_qty.append(f"x {item.quantity}")
-                    item_parts.append(f"- {' '.join(price_qty)}")
-                parts.append(" ".join(item_parts))
+                    details.append(f"SKU: {item.sku}")
+                if details:
+                    parts.append(f"   {' | '.join(details)}")
+                parts.append("")
         elif parsed_data.product_name:
             # Fallback to legacy single-item display
-            parts.append("")
-            parts.append(f"📦 *Product:* {parsed_data.product_name}")
-            if parsed_data.sku:
-                parts.append(f"🔖 *SKU:* {parsed_data.sku}")
+            parts.append("*ITEM:*")
+            parts.append("─" * 20)
+            qty = parsed_data.quantity or "1"
+            parts.append(f"*{parsed_data.product_name}* × {qty}")
+            details = []
             if parsed_data.price:
-                parts.append(f"💰 *Price:* {parsed_data.price}")
-            if parsed_data.quantity:
-                parts.append(f"🔢 *Quantity:* {parsed_data.quantity}")
-        
-        # Customer details
-        if parsed_data.customer_name:
+                details.append(f"₹ {parsed_data.price.replace('₹', '').strip()}")
+            if parsed_data.sku:
+                details.append(f"SKU: {parsed_data.sku}")
+            if details:
+                parts.append(f"   {' | '.join(details)}")
             parts.append("")
-            parts.append("👤 *Customer Details:*")
-            parts.append(f"   {parsed_data.customer_name}")
+        
+        # Divider before meta details
+        parts.append("─" * 20)
+        
+        # Payment status
+        if parsed_data.payment_status:
+            parts.append(f"💳 Payment: {parsed_data.payment_status}")
+        
+        # Customer details - compact format
+        if parsed_data.customer_name:
+            parts.append(f"👤 {parsed_data.customer_name}")
             
+            # Address on one line if possible
+            address_parts = []
             if parsed_data.address_line:
-                parts.append(f"   {parsed_data.address_line}")
-            
+                address_parts.append(parsed_data.address_line)
             if parsed_data.city_state_pincode:
-                parts.append(f"   {parsed_data.city_state_pincode}")
-            
+                address_parts.append(parsed_data.city_state_pincode)
             if parsed_data.country:
-                parts.append(f"   {parsed_data.country}")
+                address_parts.append(parsed_data.country)
+            
+            if address_parts:
+                parts.append(f"📍 {', '.join(address_parts)}")
         
         # If no parsed data, show warning
         has_items = bool(parsed_data.items) or bool(parsed_data.product_name)
