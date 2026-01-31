@@ -2,6 +2,25 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
+class OrderItemData(BaseModel):
+    """DTO for a single order item."""
+    
+    product_name: Optional[str] = Field(default=None, description="Product name")
+    sku: Optional[str] = Field(default=None, description="Product SKU")
+    price: Optional[str] = Field(default=None, description="Product price")
+    quantity: Optional[str] = Field(default=None, description="Order quantity")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "product_name": "T-Shirt",
+                "sku": "TSH-001",
+                "price": "₹500",
+                "quantity": "2",
+            }
+        }
+
+
 class ProcessEmailsRequest(BaseModel):
     """Request DTO for processing kraftculture emails."""
     
@@ -46,10 +65,12 @@ class ParsedEmailData(BaseModel):
     
     order_id: Optional[str] = Field(default=None, description="Order ID")
     order_name: Optional[str] = Field(default=None, description="Order name")
-    product_name: Optional[str] = Field(default=None, description="Product name")
-    sku: Optional[str] = Field(default=None, description="Product SKU")
-    price: Optional[str] = Field(default=None, description="Product price")
-    quantity: Optional[str] = Field(default=None, description="Order quantity")
+    items: list[OrderItemData] = Field(default_factory=list, description="List of order items")
+    # Keep legacy single-item fields for backward compatibility
+    product_name: Optional[str] = Field(default=None, description="Product name (deprecated, use items)")
+    sku: Optional[str] = Field(default=None, description="Product SKU (deprecated, use items)")
+    price: Optional[str] = Field(default=None, description="Product price (deprecated, use items)")
+    quantity: Optional[str] = Field(default=None, description="Order quantity (deprecated, use items)")
     payment_status: Optional[str] = Field(default=None, description="Payment status")
     customer_name: Optional[str] = Field(default=None, description="Customer name")
     address_line: Optional[str] = Field(default=None, description="Address line")
@@ -61,6 +82,10 @@ class ParsedEmailData(BaseModel):
             "example": {
                 "order_id": "12345",
                 "order_name": "ORD-001",
+                "items": [
+                    {"product_name": "T-Shirt", "sku": "TSH-001", "price": "₹500", "quantity": "2"},
+                    {"product_name": "Jeans", "sku": "JNS-002", "price": "₹1200", "quantity": "1"},
+                ],
                 "product_name": "T-Shirt",
                 "sku": "TSH-001",
                 "price": "₹500",

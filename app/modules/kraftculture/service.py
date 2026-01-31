@@ -11,8 +11,8 @@ from app.integrations.gmail.service import GmailService
 from app.integrations.gmail.dto import EmailDTO
 from app.integrations.whatsapp.service import WhatsAppService
 from app.core.cache.service import CacheService
-from app.modules.kraftculture.dto import ParsedEmailData, ProcessEmailsResponse
-from app.modules.kraftculture.models import DeodapOrderEmail
+from app.modules.kraftculture.dto import OrderItemData, ParsedEmailData, ProcessEmailsResponse
+from app.modules.kraftculture.models import DeodapOrderEmail, DeodapOrderItem
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +24,15 @@ DEFAULT_LOOKBACK_DAYS = 7
 
 
 def parse_webkul_order_email(html: str) -> dict:
-    """Parse Webkul order email HTML into structured data."""
+    """Parse Webkul order email HTML into structured data.
+    
+    Now extracts ALL product rows from the order table, not just the first one.
+    Returns a dict with 'items' list containing all products.
+    """
     soup = BeautifulSoup(html, "html.parser")
 
     data = {}
+    items = []
 
     # --- Order table ---
     table = soup.find("table")
@@ -36,21 +41,34 @@ def parse_webkul_order_email(html: str) -> dict:
 
     rows = table.find_all("tr")
 
-    # First product row
-    product_row = None
+    # Extract ALL product rows (rows with >= 8 td cells)
+    first_product_row = True
     for row in rows:
         tds = row.find_all("td")
         if len(tds) >= 8:
-            product_row = tds
-            break
-
-    if product_row:
-        data["order_id"] = product_row[0].get_text(strip=True)
-        data["order_name"] = product_row[1].get_text(strip=True)
-        data["product_name"] = product_row[3].get_text(strip=True)
-        data["sku"] = product_row[4].get_text(strip=True)
-        data["price"] = product_row[5].get_text(strip=True)
-        data["quantity"] = product_row[6].get_text(strip=True)
+            # Extract order-level info from the first product row only
+            if first_product_row:
+                data["order_id"] = tds[0].get_text(strip=True)
+                data["order_name"] = tds[1].get_text(strip=True)
+                first_product_row = False
+            
+            # Extract item-level info from every product row
+            item = {
+                "product_name": tds[3].get_text(strip=True),
+                "sku": tds[4].get_text(strip=True),
+                "price": tds[5].get_text(strip=True),
+                "quantity": tds[6].get_text(strip=True),
+            }
+            items.append(item)
+    
+    data["items"] = items
+    
+    # For backward compatibility, also set single-item fields from first item
+    if items:
+        data["product_name"] = items[0]["product_name"]
+        data["sku"] = items[0]["sku"]
+        data["price"] = items[0]["price"]
+        data["quantity"] = items[0]["quantity"]
 
     # --- Order total & payment status ---
     for row in rows:
@@ -142,7 +160,7 @@ class KraftcultureService:
         parsed_data: ParsedEmailData,
         whatsapp_sent: bool = False,
     ) -> DeodapOrderEmail:
-        """Save a parsed order email to the database."""
+        """Save a parsed order email and its items to the database."""
         order_email = DeodapOrderEmail(
             gmail_message_id=email.id,
             gmail_thread_id=email.thread_id,
@@ -151,6 +169,7 @@ class KraftcultureService:
             email_from=email.from_email,
             order_id=parsed_data.order_id,
             order_name=parsed_data.order_name,
+            # Keep legacy single-item fields for backward compatibility
             product_name=parsed_data.product_name,
             sku=parsed_data.sku,
             price=parsed_data.price,
@@ -164,9 +183,24 @@ class KraftcultureService:
         )
         
         db.add(order_email)
+        await db.flush()  # Flush to get the order_email.id
+        
+        # Save all order items
+        for item_data in parsed_data.items:
+            order_item = DeodapOrderItem(
+                order_email_id=order_email.id,
+                product_name=item_data.product_name,
+                sku=item_data.sku,
+                price=item_data.price,
+                quantity=item_data.quantity,
+            )
+            db.add(order_item)
+        
         await db.flush()
         
-        logger.info(f"Saved order email {email.id} to database")
+        logger.info(
+            f"Saved order email {email.id} with {len(parsed_data.items)} items to database"
+        )
         return order_email
 
     def parse_email(self, email: EmailDTO) -> ParsedEmailData:
@@ -177,7 +211,7 @@ class KraftcultureService:
             email: The email DTO to parse
             
         Returns:
-            ParsedEmailData with extracted order information
+            ParsedEmailData with extracted order information including all items
         """
         # Use HTML body for parsing if available, otherwise fall back to plain text
         html_content = email.html_body or email.body or ""
@@ -185,9 +219,22 @@ class KraftcultureService:
         # Parse the Webkul order email
         parsed_data = parse_webkul_order_email(html_content)
         
+        # Convert raw item dicts to OrderItemData objects
+        items = [
+            OrderItemData(
+                product_name=item.get("product_name"),
+                sku=item.get("sku"),
+                price=item.get("price"),
+                quantity=item.get("quantity"),
+            )
+            for item in parsed_data.get("items", [])
+        ]
+        
         return ParsedEmailData(
             order_id=parsed_data.get("order_id"),
             order_name=parsed_data.get("order_name"),
+            items=items,
+            # Keep legacy single-item fields for backward compatibility
             product_name=parsed_data.get("product_name"),
             sku=parsed_data.get("sku"),
             price=parsed_data.get("price"),
@@ -223,20 +270,36 @@ class KraftcultureService:
         if parsed_data.order_name:
             parts.append(f"🏷️ *Order Name:* {parsed_data.order_name}")
         
-        if parsed_data.product_name:
-            parts.append(f"📦 *Product:* {parsed_data.product_name}")
-        
-        if parsed_data.sku:
-            parts.append(f"🔖 *SKU:* {parsed_data.sku}")
-        
-        if parsed_data.price:
-            parts.append(f"💰 *Price:* {parsed_data.price}")
-        
-        if parsed_data.quantity:
-            parts.append(f"🔢 *Quantity:* {parsed_data.quantity}")
-        
         if parsed_data.payment_status:
             parts.append(f"💳 *Payment:* {parsed_data.payment_status}")
+        
+        # Products section - show all items
+        if parsed_data.items:
+            parts.append("")
+            parts.append(f"📦 *Products ({len(parsed_data.items)}):*")
+            for i, item in enumerate(parsed_data.items, 1):
+                # Format: 1. Product Name (SKU: XXX) - ₹500 x 2
+                item_parts = [f"   {i}. {item.product_name or 'Unknown Product'}"]
+                if item.sku:
+                    item_parts.append(f"(SKU: {item.sku})")
+                if item.price or item.quantity:
+                    price_qty = []
+                    if item.price:
+                        price_qty.append(item.price)
+                    if item.quantity:
+                        price_qty.append(f"x {item.quantity}")
+                    item_parts.append(f"- {' '.join(price_qty)}")
+                parts.append(" ".join(item_parts))
+        elif parsed_data.product_name:
+            # Fallback to legacy single-item display
+            parts.append("")
+            parts.append(f"📦 *Product:* {parsed_data.product_name}")
+            if parsed_data.sku:
+                parts.append(f"🔖 *SKU:* {parsed_data.sku}")
+            if parsed_data.price:
+                parts.append(f"💰 *Price:* {parsed_data.price}")
+            if parsed_data.quantity:
+                parts.append(f"🔢 *Quantity:* {parsed_data.quantity}")
         
         # Customer details
         if parsed_data.customer_name:
@@ -254,7 +317,8 @@ class KraftcultureService:
                 parts.append(f"   {parsed_data.country}")
         
         # If no parsed data, show warning
-        if not any([parsed_data.order_id, parsed_data.product_name, parsed_data.customer_name]):
+        has_items = bool(parsed_data.items) or bool(parsed_data.product_name)
+        if not any([parsed_data.order_id, has_items, parsed_data.customer_name]):
             parts.append("")
             parts.append("⚠️ Could not parse order details from email.")
         

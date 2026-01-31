@@ -1,9 +1,12 @@
 from datetime import datetime
-from typing import Optional
-from sqlalchemy import String, DateTime, Boolean, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from typing import Optional, TYPE_CHECKING
+from sqlalchemy import String, DateTime, Boolean, Text, ForeignKey, Integer
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db.base import BaseModel
+
+if TYPE_CHECKING:
+    from typing import List
 
 
 class DeodapOrderEmail(BaseModel):
@@ -31,6 +34,7 @@ class DeodapOrderEmail(BaseModel):
         String(100), nullable=True, index=True
     )
     order_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    # Legacy single-item fields (deprecated, use items relationship)
     product_name: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     sku: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     price: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
@@ -44,8 +48,41 @@ class DeodapOrderEmail(BaseModel):
     # Processing metadata
     whatsapp_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # Relationship to order items
+    items: Mapped[list["DeodapOrderItem"]] = relationship(
+        "DeodapOrderItem", back_populates="order_email", cascade="all, delete-orphan"
+    )
+
     def __repr__(self):
         return (
             f"<DeodapOrderEmail(id={self.id}, order_id={self.order_id}, "
             f"gmail_message_id={self.gmail_message_id})>"
+        )
+
+
+class DeodapOrderItem(BaseModel):
+    """Model for storing individual order items from Deodap/Kraftculture orders."""
+
+    __tablename__ = "deodap_order_items"
+
+    # Foreign key to order email
+    order_email_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("deodap_order_emails.id"), nullable=False, index=True
+    )
+
+    # Item fields
+    product_name: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    sku: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    price: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    quantity: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+
+    # Relationship back to order email
+    order_email: Mapped["DeodapOrderEmail"] = relationship(
+        "DeodapOrderEmail", back_populates="items"
+    )
+
+    def __repr__(self):
+        return (
+            f"<DeodapOrderItem(id={self.id}, order_email_id={self.order_email_id}, "
+            f"product_name={self.product_name}, sku={self.sku})>"
         )
