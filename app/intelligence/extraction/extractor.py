@@ -52,5 +52,13 @@ async def extract_dto(
             dto_instance.category_name = classification_result["category"]  # type: ignore
         if hasattr(dto_instance, "subcategory_name"):
             dto_instance.subcategory_name = classification_result["subcategory"]  # type: ignore
+        
+        # Set classification metadata for handlers to use
+        if hasattr(dto_instance, "classification_confidence"):
+            dto_instance.classification_confidence = classification_result.get("confidence")  # type: ignore
+        if hasattr(dto_instance, "classification_method"):
+            dto_instance.classification_method = classification_result.get("method")  # type: ignore
+        if hasattr(dto_instance, "classification_reasoning"):
+            dto_instance.classification_reasoning = classification_result.get("reasoning")  # type: ignore
 
     return dto_instance

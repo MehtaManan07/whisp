@@ -6,9 +6,10 @@ from app.intelligence.intent.types import (
     CLASSIFIED_RESULT,
     IntentType,
 )
-from app.modules.expenses.dto import CreateExpenseModel, GetAllExpensesModel
+from app.modules.expenses.dto import CreateExpenseModel, GetAllExpensesModel, CorrectExpenseModel
 from app.modules.expenses.service import ExpensesService
 from app.modules.users.service import UsersService
+from app.intelligence.categorization.constants import CATEGORIES, is_valid_category
 
 
 class ExpenseHandlers(BaseHandlers):
@@ -51,6 +52,11 @@ class ExpenseHandlers(BaseHandlers):
         note_info = f" (Note: {dto_instance.note})" if dto_instance.note else ""
         
         response = f"✅ Expense logged successfully!\n💰 Amount: {amount_str}{category_info}{vendor_info}{note_info}"
+        
+        # Add confidence info for low-confidence classifications
+        confidence = getattr(dto_instance, 'classification_confidence', None)
+        if confidence is not None and confidence < 0.7:
+            response += f"\n\n⚠️ I'm not 100% sure about this category (confidence: {confidence:.0%}). Reply with the correct category if needed."
         
         return response
 
@@ -102,3 +108,79 @@ class ExpenseHandlers(BaseHandlers):
             response_parts.append(f"• {expense.to_human_message(user_timezone)}")
         
         return "\n".join(response_parts)
+
+    @intent_handler(IntentType.CORRECT_EXPENSE)
+    async def correct_expense(
+        self, classified_result: CLASSIFIED_RESULT, user_id: int, db: AsyncSession
+    ) -> str:
+        """Handle expense category correction."""
+        dto_instance, intent = classified_result
+        if not dto_instance:
+            return "I couldn't understand the correction. Please specify the correct category (e.g., 'change category to Business')."
+        if not isinstance(dto_instance, CorrectExpenseModel):
+            return "Invalid data for correcting expense."
+        if not dto_instance.user_id:
+            dto_instance.user_id = user_id
+        
+        # Validate the category
+        category = dto_instance.correct_category
+        subcategory = dto_instance.correct_subcategory
+        
+        if category not in CATEGORIES:
+            available = ", ".join(CATEGORIES.keys())
+            return f"'{category}' is not a valid category. Available categories: {available}"
+        
+        if subcategory and not is_valid_category(category, subcategory):
+            available = ", ".join(CATEGORIES[category])
+            return f"'{subcategory}' is not a valid subcategory for {category}. Available: {available}"
+        
+        # If no expense ID provided, correct the most recent expense
+        if dto_instance.expense_id:
+            expense_id = dto_instance.expense_id
+        else:
+            latest_expense = await self.service.get_latest_expense(db, user_id)
+            if not latest_expense:
+                return "No recent expense found to correct. Please specify which expense to correct."
+            expense_id = latest_expense.id
+        
+        try:
+            # Get the expense to find old category for learning
+            expense = await self.service.get_latest_expense(db, user_id)
+            old_category = None
+            old_subcategory = None
+            vendor = None
+            note = None
+            
+            if expense and expense.id == expense_id:
+                if expense.category:
+                    old_category = expense.category.name
+                    if expense.category.parent:
+                        old_category = expense.category.parent.name
+                        old_subcategory = expense.category.name
+                vendor = expense.vendor
+                note = expense.note
+            
+            # Update the category
+            if not subcategory:
+                subcategory = CATEGORIES[category][0]  # Use first subcategory as default
+            
+            await self.service.update_expense_category(
+                db=db,
+                expense_id=expense_id,
+                category_name=category,
+                subcategory_name=subcategory,
+            )
+            
+            response = f"✅ Category updated to {category} > {subcategory}"
+            
+            # Note: To fully wire up learning, we'd need to inject CategoryClassifier here
+            # and call learn_from_correction(). For now, the correction is saved.
+            if old_category:
+                response += f"\n📝 Changed from: {old_category}"
+                if old_subcategory:
+                    response += f" > {old_subcategory}"
+            
+            return response
+            
+        except Exception as e:
+            return f"Failed to update category: {str(e)}"

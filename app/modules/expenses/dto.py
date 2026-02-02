@@ -8,6 +8,14 @@ class DeleteExpenseModel(BaseModel):
     id: int = Field(..., description="Unique identifier of the expense to delete")
 
 
+class CorrectExpenseModel(BaseModel):
+    """DTO for correcting/updating an expense's category."""
+    user_id: int = Field(..., description="ID of the user")
+    expense_id: Optional[int] = Field(None, description="ID of the expense to correct (if known)")
+    correct_category: str = Field(..., description="The correct category name")
+    correct_subcategory: Optional[str] = Field(None, description="The correct subcategory name")
+
+
 class CreateExpenseModel(BaseModel):
     user_id: int = Field(..., description="ID of the user creating the expense")
     category_name: Optional[str] = Field(None, description="Name of the category for this expense")
@@ -17,6 +25,11 @@ class CreateExpenseModel(BaseModel):
     source_message_id: Optional[str] = Field(None, description="ID of the source message (e.g., from WhatsApp)")
     vendor: Optional[str] = Field(None, description="Name of the vendor or merchant")
     timestamp: Optional[datetime] = Field(None, description="When the expense occurred")
+    
+    # Classification metadata (not extracted by LLM, set by CategoryClassifier)
+    classification_confidence: Optional[float] = Field(None, description="Confidence score of the category classification (0.0-1.0)")
+    classification_method: Optional[str] = Field(None, description="Method used for classification (known_merchant, llm, cache, etc.)")
+    classification_reasoning: Optional[str] = Field(None, description="Reasoning behind the classification")
 
 
 class GetAllExpensesModel(BaseModel):

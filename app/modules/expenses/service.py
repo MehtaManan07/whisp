@@ -227,3 +227,53 @@ class ExpensesService:
             raise DatabaseError(f"update expense: {str(e)}")
 
         return None
+
+    async def get_latest_expense(
+        self, db: AsyncSession, user_id: int
+    ) -> Expense | None:
+        """Get the most recently created expense for a user."""
+        try:
+            result = await db.execute(
+                select(Expense)
+                .options(selectinload(Expense.category))
+                .where(Expense.user_id == user_id)
+                .where(Expense.deleted_at.is_(None))
+                .order_by(Expense.created_at.desc())
+                .limit(1)
+            )
+            return result.scalar_one_or_none()
+        except Exception as e:
+            self.logger.error(f"Error getting latest expense: {str(e)}")
+            return None
+
+    async def update_expense_category(
+        self,
+        db: AsyncSession,
+        expense_id: int,
+        category_name: str,
+        subcategory_name: str | None = None,
+    ) -> Expense:
+        """Update an expense's category and subcategory."""
+        try:
+            expense = await db.get(Expense, expense_id)
+            if expense is None or expense.deleted_at is not None:
+                raise ExpenseNotFoundError(expense_id)
+
+            # Find or create the category
+            category = await self.categories_service.find_or_create_category(
+                db=db,
+                category_name=category_name,
+                subcategory_name=subcategory_name,
+            )
+            
+            expense.category_id = category.id
+            await db.commit()
+            await db.refresh(expense)
+            
+            return expense
+        except Exception as e:
+            await db.rollback()
+            if isinstance(e, ExpenseNotFoundError):
+                raise
+            self.logger.error(f"Error updating expense category: {str(e)}")
+            raise DatabaseError(f"update expense category: {str(e)}")
