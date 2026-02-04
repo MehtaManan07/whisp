@@ -26,7 +26,8 @@ DEFAULT_LOOKBACK_DAYS = 7
 def parse_webkul_order_email(html: str) -> dict:
     """Parse Webkul order email HTML into structured data.
     
-    Now extracts ALL product rows from the order table, not just the first one.
+    Extracts ALL product rows from the order table.
+    Handles both first row (with Order ID/Name) and subsequent rows (without).
     Returns a dict with 'items' list containing all products.
     """
     soup = BeautifulSoup(html, "html.parser")
@@ -41,25 +42,81 @@ def parse_webkul_order_email(html: str) -> dict:
 
     rows = table.find_all("tr")
 
-    # Extract ALL product rows (rows with >= 8 td cells)
+    # Extract product rows - handle different column structures
+    # First row: Order ID | Order Name | Image | Product Name | SKU | Price | QTY | Discount | Sub Total (8-9 cols)
+    # Subsequent rows: (empty/merged) | (empty/merged) | Image | Product Name | SKU | Price | QTY | Discount | Sub Total (5-7 cols)
     first_product_row = True
     for row in rows:
         tds = row.find_all("td")
-        if len(tds) >= 8:
-            # Extract order-level info from the first product row only
+        num_cells = len(tds)
+        
+        # Skip rows with too few cells (headers, footers, etc.)
+        if num_cells < 5:
+            continue
+        
+        # Try to identify product rows by looking for SKU pattern or price pattern
+        row_text = row.get_text(" ", strip=True)
+        
+        # Check if this looks like a product row (has SKU-like pattern or ₹ price)
+        has_sku = bool(re.search(r'whl\d+_\d+', row_text))
+        has_price = '₹' in row_text
+        
+        if not (has_sku or has_price):
+            continue
+        
+        # Determine column indices based on row structure
+        if num_cells >= 8:
+            # First product row with Order ID, Order Name
             if first_product_row:
                 data["order_id"] = tds[0].get_text(strip=True)
                 data["order_name"] = tds[1].get_text(strip=True)
                 first_product_row = False
             
-            # Extract item-level info from every product row
+            # Columns: 0=OrderID, 1=OrderName, 2=Image, 3=ProductName, 4=SKU, 5=Price, 6=QTY, 7=Discount, 8=SubTotal
+            product_name_idx = 3
+            sku_idx = 4
+            price_idx = 5
+            qty_idx = 6
+        elif num_cells >= 5:
+            # Subsequent product rows (Order ID/Name columns merged or empty)
+            # Columns: 0=Image, 1=ProductName, 2=SKU, 3=Price, 4=QTY, 5=Discount, 6=SubTotal
+            # OR: 0=Empty, 1=Empty, 2=Image, 3=ProductName, 4=SKU, 5=Price, 6=QTY
+            
+            # Find the SKU column to determine structure
+            sku_col = -1
+            for i, td in enumerate(tds):
+                if re.search(r'whl\d+_\d+', td.get_text(strip=True)):
+                    sku_col = i
+                    break
+            
+            if sku_col == -1:
+                continue  # Can't find SKU, skip row
+            
+            # SKU is typically at index 4 (first row) or 2 (subsequent) or 4 (with empty cols)
+            # Product name is 1 before SKU, price is 1 after, qty is 2 after
+            product_name_idx = sku_col - 1
+            sku_idx = sku_col
+            price_idx = sku_col + 1
+            qty_idx = sku_col + 2
+            
+            if product_name_idx < 0 or qty_idx >= num_cells:
+                continue  # Invalid indices
+        else:
+            continue
+        
+        # Extract item data
+        try:
             item = {
-                "product_name": tds[3].get_text(strip=True),
-                "sku": tds[4].get_text(strip=True),
-                "price": tds[5].get_text(strip=True),
-                "quantity": tds[6].get_text(strip=True),
+                "product_name": tds[product_name_idx].get_text(strip=True),
+                "sku": tds[sku_idx].get_text(strip=True),
+                "price": tds[price_idx].get_text(strip=True) if price_idx < num_cells else "",
+                "quantity": tds[qty_idx].get_text(strip=True) if qty_idx < num_cells else "1",
             }
-            items.append(item)
+            # Only add if we have a valid product name and SKU
+            if item["product_name"] and item["sku"]:
+                items.append(item)
+        except (IndexError, AttributeError):
+            continue
     
     data["items"] = items
     
@@ -116,7 +173,7 @@ class KraftcultureService:
         self.whatsapp_service = whatsapp_service
         self.cache_service = cache_service
         self.default_sender_email = default_sender_email
-        self.whatsapp_numbers = whatsapp_numbers or ["919328483009"]
+        self.whatsapp_numbers = whatsapp_numbers
 
     async def _get_pointer_date(self) -> datetime:
         """
@@ -259,10 +316,16 @@ class KraftcultureService:
         """
         parts = []
         
-        # Header with order ID
+        # Header with order ID and date
         parts.append("🛒 *NEW ORDER*")
         if parsed_data.order_id:
             parts.append(f"Order #{parsed_data.order_id}")
+        
+        # Add order received date/time
+        if email.date:
+            # Format: "3 Feb 2026, 10:30 AM"
+            formatted_date = email.date.strftime("%-d %b %Y, %-I:%M %p")
+            parts.append(f"🕐 {formatted_date}")
         parts.append("")
         
         # Products section - PROMINENTLY show product name and quantity first
@@ -340,7 +403,7 @@ class KraftcultureService:
         self,
         db: AsyncSession,
         from_email: Optional[str] = None,
-        max_results: int = 10,
+        max_results: int = 100,
     ) -> ProcessEmailsResponse:
         """
         Fetch emails, parse them, store in DB, and send to WhatsApp.

@@ -35,16 +35,17 @@ class GmailService:
         self._credentials = None
 
     def _get_credentials(self) -> Credentials:
-        """Get or refresh OAuth2 credentials."""
+        """Get or refresh OAuth2 credentials automatically."""
         creds = None
 
         # Load existing token if available
         if os.path.exists(self.token_path):
             creds = Credentials.from_authorized_user_file(self.token_path, self.SCOPES)
 
-        # If no valid credentials, get new ones
+        # If no valid credentials, or expired without refresh token, get new ones
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
+                # Auto-refresh using refresh token
                 logger.info("Refreshing expired Gmail credentials")
                 creds.refresh(Request())
             else:
@@ -59,12 +60,13 @@ class GmailService:
                 )
                 creds = flow.run_local_server(port=0)
 
-            # Save the credentials for next run
-            with open(self.token_path, "w") as token:
-                token.write(creds.to_json())
+            # Always save updated credentials (new access token, expiry) to token.json
+            with open(self.token_path, "w") as token_file:
+                token_file.write(creds.to_json())
                 logger.info(f"Saved Gmail credentials to {self.token_path}")
 
         return creds
+
 
     def _get_service(self):
         """Get or create Gmail API service instance."""

@@ -29,9 +29,9 @@ class ProcessEmailsRequest(BaseModel):
         description="Override sender email to filter (uses config default if not provided)"
     )
     max_results: int = Field(
-        default=10, 
+        default=100, 
         ge=1, 
-        le=50, 
+        le=500, 
         description="Maximum number of emails to fetch"
     )
     

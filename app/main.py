@@ -54,14 +54,14 @@ async def lifespan(app: FastAPI):
             f"📅 Reminders job scheduled every {config.scheduler_reminders_interval_minutes} minute(s)"
         )
         
-        # Add kraftculture email job
+        # Add kraftculture email job (hourly)
         scheduler_service.add_interval_job(
             func=process_kraftculture_emails,
-            minutes=config.scheduler_kraftculture_interval_minutes,
+            hours=config.scheduler_kraftculture_interval_hours,
             job_id="process_kraftculture_emails",
         )
         logger.info(
-            f"📧 Kraftculture job scheduled every {config.scheduler_kraftculture_interval_minutes} minute(s)"
+            f"📧 Kraftculture job scheduled every {config.scheduler_kraftculture_interval_hours} hour(s)"
         )
     else:
         logger.info("⏸️ Scheduler is disabled")

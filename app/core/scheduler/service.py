@@ -34,8 +34,9 @@ class SchedulerService:
     def add_interval_job(
         self,
         func: Callable,
-        minutes: int,
         job_id: str,
+        minutes: int = 0,
+        hours: int = 0,
         run_immediately: bool = False,
         **kwargs,
     ) -> None:
@@ -44,12 +45,13 @@ class SchedulerService:
         
         Args:
             func: The async function to run
-            minutes: Interval in minutes
             job_id: Unique identifier for the job
+            minutes: Interval in minutes (default 0)
+            hours: Interval in hours (default 0)
             run_immediately: If True, run the job immediately on startup
             **kwargs: Additional arguments passed to add_job
         """
-        trigger = IntervalTrigger(minutes=minutes)
+        trigger = IntervalTrigger(hours=hours, minutes=minutes)
         
         self.scheduler.add_job(
             func,
@@ -59,7 +61,12 @@ class SchedulerService:
             **kwargs,
         )
         
-        logger.info(f"Added job '{job_id}' with interval {minutes} minutes")
+        interval_str = []
+        if hours:
+            interval_str.append(f"{hours} hour(s)")
+        if minutes:
+            interval_str.append(f"{minutes} minute(s)")
+        logger.info(f"Added job '{job_id}' with interval {' '.join(interval_str) or '0'}")
         
         # Optionally run immediately
         if run_immediately:

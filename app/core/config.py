@@ -55,8 +55,8 @@ class Config(BaseSettings):
     scheduler_reminders_interval_minutes: int = Field(
         default=1, alias="SCHEDULER_REMINDERS_INTERVAL_MINUTES"
     )
-    scheduler_kraftculture_interval_minutes: int = Field(
-        default=5, alias="SCHEDULER_KRAFTCULTURE_INTERVAL_MINUTES"
+    scheduler_kraftculture_interval_hours: int = Field(
+        default=1, alias="SCHEDULER_KRAFTCULTURE_INTERVAL_HOURS"
     )
 
     # Path to .env file (for loading env vars)
