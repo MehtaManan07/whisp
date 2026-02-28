@@ -3,6 +3,7 @@ from app.integrations.llm.service import LLMService
 from app.intelligence.categorization.classifier import CategoryClassifier
 from app.intelligence.extraction.prompts import build_dto_prompt
 from app.intelligence.intent.types import DTO_UNION, INTENT_TO_DTO, IntentType
+from app.modules.expenses.dto import CreateExpenseModel, GetAllExpensesModel
 
 
 async def extract_dto(
@@ -39,26 +40,26 @@ async def extract_dto(
     # Create DTO instance from LLM extraction
     dto_instance = INTENT_TO_DTO[intent](**parsed_dto)
 
-    # Always run categorization for expense DTOs since LLM no longer handles categories
-    if hasattr(dto_instance, "category_name") or hasattr(
-        dto_instance, "subcategory_name"
-    ):
+    # Transaction category classification is only for log-expense flow.
+    if intent == IntentType.LOG_EXPENSE and isinstance(dto_instance, CreateExpenseModel):
         classification_result = await category_classifier.classify(
             original_message=message, dto_instance=dto_instance, user_id=user_id
         )
 
-        # Set the classified categories (can be None for non-transactional queries)
-        if hasattr(dto_instance, "category_name"):
-            dto_instance.category_name = classification_result["category"]  # type: ignore
-        if hasattr(dto_instance, "subcategory_name"):
-            dto_instance.subcategory_name = classification_result["subcategory"]  # type: ignore
-        
-        # Set classification metadata for handlers to use
-        if hasattr(dto_instance, "classification_confidence"):
-            dto_instance.classification_confidence = classification_result.get("confidence")  # type: ignore
-        if hasattr(dto_instance, "classification_method"):
-            dto_instance.classification_method = classification_result.get("method")  # type: ignore
-        if hasattr(dto_instance, "classification_reasoning"):
-            dto_instance.classification_reasoning = classification_result.get("reasoning")  # type: ignore
+        dto_instance.category_name = classification_result["category"]
+        dto_instance.subcategory_name = classification_result["subcategory"]
+        dto_instance.classification_confidence = classification_result.get("confidence")
+        dto_instance.classification_method = classification_result.get("method")
+        dto_instance.classification_reasoning = classification_result.get("reasoning")
+
+    # Query filter classification uses deterministic-first pipeline and
+    # keeps category/subcategory as separate confidence decisions.
+    if intent == IntentType.VIEW_EXPENSES and isinstance(dto_instance, GetAllExpensesModel):
+        query_filter_result = await category_classifier.classify_query_filters(
+            message=message,
+            vendor=dto_instance.vendor,
+        )
+        dto_instance.category_name = query_filter_result["category_name"]
+        dto_instance.subcategory_name = query_filter_result["subcategory_name"]
 
     return dto_instance

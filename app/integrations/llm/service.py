@@ -245,6 +245,7 @@ class LLMService:
             if data is None:
                 raise LLMServiceError("Groq API returned no response")
             
+            logger.info(f"Groq API response: {data}")
             return self._parse_response(data)
 
         except Exception as e:

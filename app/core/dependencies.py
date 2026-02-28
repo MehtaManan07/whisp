@@ -20,6 +20,7 @@ from app.modules.kraftculture.service import KraftcultureService
 from app.modules.users.service import UsersService
 from app.modules.reminders.service import ReminderService
 from app.modules.categories.service import CategoriesService
+from app.modules.bank_transactions.service import BankTransactionService
 from app.intelligence.intent.classifier import IntentClassifier
 from app.intelligence.categorization.classifier import CategoryClassifier
 from app.core.orchestrator import MessageOrchestrator
@@ -129,6 +130,21 @@ def get_kraftculture_service():
     )
 
 
+@lru_cache()
+def get_bank_transaction_service():
+    """Bank transaction service - SINGLETON"""
+    gmail_service = get_gmail_service()
+    whatsapp_service = get_whatsapp_service()
+    cache_service = get_cache_service()
+
+    return BankTransactionService(
+        gmail_service=gmail_service,
+        whatsapp_service=whatsapp_service,
+        cache_service=cache_service,
+        whatsapp_number=config.bank_transactions_whatsapp_number,
+    )
+
+
 # ============================================================================
 # INTELLIGENCE LAYER (Singletons)
 # ============================================================================
@@ -193,3 +209,6 @@ GmailServiceDep = Annotated[GmailService, Depends(get_gmail_service)]
 
 # Kraftculture dependencies
 KraftcultureServiceDep = Annotated[KraftcultureService, Depends(get_kraftculture_service)]
+
+# Bank transaction dependencies
+BankTransactionServiceDep = Annotated[BankTransactionService, Depends(get_bank_transaction_service)]

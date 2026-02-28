@@ -17,6 +17,7 @@ from app.modules.categories.sql import (
 )
 from app.modules.categories.types import FindOrCreateResult
 from app.core.db.engine import run_db
+from app.utils.datetime import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ class CategoriesService:
             name=category_data.name,
             description=category_data.description,
             parent_id=category_data.parent_id,
+            created_at=utc_now(),
         )
 
         db.add(new_category)

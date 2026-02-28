@@ -115,3 +115,35 @@ Correct classification: {correct_category} > {correct_subcategory}
 
 Why was the original classification wrong? What pattern should we remember?
 Return JSON: {{"pattern": "description of what to look for", "correct_category": "{correct_category}", "correct_subcategory": "{correct_subcategory}", "avoid_confusion_with": "{wrong_category} > {wrong_subcategory}"}}"""
+
+
+def build_query_filter_fallback_prompt(message: str) -> str:
+    """
+    Build a constrained fallback prompt for expense-search category filters.
+
+    This prompt is only used when deterministic alias matching did not produce
+    a confident match.
+    """
+    categories_list = "\n".join(
+        [f"- {cat}: {', '.join(subcats)}" for cat, subcats in CATEGORIES.items()]
+    )
+    return f"""You classify expense SEARCH queries into category filters.
+
+User message:
+"{message}"
+
+You MUST choose values ONLY from this taxonomy:
+{categories_list}
+
+Rules:
+1. Return JSON only.
+2. category_name must be one of the listed category names, or null.
+3. subcategory_name must be one of the listed subcategories under category_name, or null.
+4. If the user asks a broad category (example: "food expenses"), set subcategory_name to null.
+5. Only set subcategory_name when the user explicitly asks a specific subcategory (example: "groceries").
+6. If uncertain, return nulls instead of guessing.
+7. Provide independent confidence scores for category and subcategory in [0, 1].
+
+Return exactly this JSON shape:
+{{"category_name": "taxonomy category or null", "subcategory_name": "taxonomy subcategory or null", "category_confidence": 0.0, "subcategory_confidence": 0.0, "reasoning": "short reason"}}
+"""

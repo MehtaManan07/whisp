@@ -52,7 +52,7 @@ class MessageOrchestrator:
             if text.startswith("/"):
                 return await self.handle_command(payload)
             elif payload.message.context:
-                return await self.handle_reply(payload)
+                return await self.handle_reply(payload, user)
             else:
                 return await self.handle_free_text(payload, user)
         except Exception as e:
@@ -90,6 +90,22 @@ class MessageOrchestrator:
         if not text:
             return None
 
+        # Non-reply messages should always follow normal intent flow.
+        # Pending bank transaction handling is reply-context only.
+        from app.core.dependencies import get_bank_transaction_service
+
+        bank_transaction_service = get_bank_transaction_service()
+        pending_items = await bank_transaction_service.get_all_pending_confirmations(
+            user_wa_id=payload.contact.wa_id
+        )
+
+        if pending_items:
+            self.logger.info(
+                "Non-reply routed to normal intent flow despite pending transactions: user=%s pending_count=%d",
+                payload.contact.wa_id,
+                len(pending_items),
+            )
+
         intent = await self.intent_classifier.classify(text)
 
         if intent == IntentType.UNKNOWN:
@@ -118,9 +134,9 @@ class MessageOrchestrator:
         )
 
     async def handle_reply(
-        self, payload: HandleMessagePayload
+        self, payload: HandleMessagePayload, user: User
     ) -> Optional[ProcessMessageResult]:
-        """Handle reply messages."""
+        """Handle reply messages with pending-transaction context mapping."""
         text = self._extract_text(payload)
         replied_to_message_id = (
             payload.message.context.id if payload.message.context else None
@@ -129,12 +145,34 @@ class MessageOrchestrator:
         if not text:
             return None
 
-        return ProcessMessageResult(
-            messages=[
-                f'You replied with: "{text}" to message ID: {replied_to_message_id}'
-            ],
-            status="success",
+        from app.core.dependencies import get_bank_transaction_service
+
+        bank_transaction_service = get_bank_transaction_service()
+        pending_confirmation = await bank_transaction_service.get_pending_confirmation(
+            user_wa_id=payload.contact.wa_id,
+            replied_to_message_id=replied_to_message_id,
         )
+
+        if pending_confirmation:
+            self.logger.info(
+                "Reply matched pending transaction: user=%s prompt_message_id=%s amount=%.2f",
+                payload.contact.wa_id,
+                replied_to_message_id,
+                pending_confirmation.transaction_data.amount,
+            )
+            return await self.handle_pending_transaction_description(
+                payload=payload,
+                user=user,
+                pending_confirmation=pending_confirmation,
+                bank_transaction_service=bank_transaction_service,
+            )
+
+        self.logger.info(
+            "Reply not matched to pending prompt; falling back to normal intent flow: user=%s prompt_message_id=%s",
+            payload.contact.wa_id,
+            replied_to_message_id,
+        )
+        return await self.handle_free_text(payload, user)
 
     # =============================================================================
     # COMMAND HANDLERS
@@ -148,6 +186,98 @@ class MessageOrchestrator:
             name=payload.contact.profile.get("name", "buddy")
         )
         return ProcessMessageResult(messages=[message], status="success")
+    
+    async def handle_pending_transaction_description(
+        self,
+        payload: HandleMessagePayload,
+        user: User,
+        pending_confirmation,
+        bank_transaction_service,
+    ) -> ProcessMessageResult:
+        """Log a pending bank transaction using the user's free-text description."""
+        text = self._extract_text(payload)
+        if not text:
+            return None
+
+        if text in {"skip", "ignore", "no"}:
+            self.logger.info(
+                "User skipped pending transaction: user=%s gmail_message_id=%s",
+                payload.contact.wa_id,
+                pending_confirmation.gmail_message_id,
+            )
+            await bank_transaction_service.clear_pending_confirmation(
+                payload.contact.wa_id,
+                gmail_message_id=pending_confirmation.gmail_message_id,
+                prompt_message_id=pending_confirmation.prompt_message_id,
+            )
+            await bank_transaction_service.mark_transaction_action(
+                pending_confirmation.gmail_message_id, "dismissed"
+            )
+            return ProcessMessageResult(
+                messages=["Okay, skipped this expense."], status="success"
+            )
+
+        synthetic_message = (
+            f"I spent ₹{pending_confirmation.transaction_data.amount:,.2f} on {text}"
+        )
+        self.logger.info(
+            "Building synthetic expense message: user=%s gmail_message_id=%s message=%s",
+            payload.contact.wa_id,
+            pending_confirmation.gmail_message_id,
+            synthetic_message,
+        )
+
+        try:
+            extracted_dto = await extract_dto(
+                message=synthetic_message,
+                intent=IntentType.LOG_EXPENSE,
+                user_id=user.id,
+                llm_service=self.llm_service,
+                category_classifier=self.category_classifier,
+            )
+        except Exception:
+            self.logger.warning(
+                "Failed to extract dto from pending transaction description: user=%s gmail_message_id=%s",
+                payload.contact.wa_id,
+                pending_confirmation.gmail_message_id,
+            )
+            return ProcessMessageResult(
+                messages=[
+                    "Got it — can you tell me in a few words what it was for?"
+                ],
+                status="success",
+            )
+
+        extracted_dto.amount = pending_confirmation.transaction_data.amount
+        if not extracted_dto.note:
+            extracted_dto.note = text
+        if not extracted_dto.vendor and pending_confirmation.transaction_data.merchant:
+            extracted_dto.vendor = pending_confirmation.transaction_data.merchant
+        if not extracted_dto.timestamp and pending_confirmation.transaction_data.transaction_date:
+            extracted_dto.timestamp = pending_confirmation.transaction_data.transaction_date
+
+        response = await route_intent(
+            classified_result=(extracted_dto, IntentType.LOG_EXPENSE),
+            user_id=user.id,
+        )
+        self.logger.info(
+            "Expense routed successfully from pending transaction: user=%s gmail_message_id=%s amount=%.2f",
+            payload.contact.wa_id,
+            pending_confirmation.gmail_message_id,
+            extracted_dto.amount,
+        )
+
+        await bank_transaction_service.clear_pending_confirmation(
+            payload.contact.wa_id,
+            gmail_message_id=pending_confirmation.gmail_message_id,
+            prompt_message_id=pending_confirmation.prompt_message_id,
+        )
+
+        await bank_transaction_service.mark_transaction_action(
+            pending_confirmation.gmail_message_id, "confirmed"
+        )
+
+        return ProcessMessageResult(messages=[response], status="success")
 
     # =============================================================================
     # HELPER METHODS

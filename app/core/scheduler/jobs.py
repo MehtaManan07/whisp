@@ -106,3 +106,38 @@ async def process_kraftculture_emails() -> dict:
     except Exception as e:
         logger.error(f"Error in Kraftculture job: {e}")
         return {"processed": 0, "sent": 0, "errors": 1, "error": str(e)}
+
+
+async def process_bank_transaction_emails() -> dict:
+    """
+    Process bank transaction emails from HDFC and ICICI.
+
+    This job runs periodically to fetch new transaction emails from Gmail,
+    parse them, store in database, and send WhatsApp confirmation prompts.
+
+    Returns:
+        Summary of processed emails
+    """
+    from app.core.dependencies import get_bank_transaction_service
+
+    bank_transaction_service = get_bank_transaction_service()
+
+    logger.info("Starting bank transaction email processing job")
+
+    try:
+        result = await bank_transaction_service.process_emails()
+
+        logger.info(
+            f"Bank transaction job completed: {result.processed_count} processed, "
+            f"{result.sent_count} sent, {len(result.errors)} errors"
+        )
+
+        return {
+            "processed": result.processed_count,
+            "sent": result.sent_count,
+            "errors": len(result.errors),
+        }
+
+    except Exception as e:
+        logger.error(f"Error in bank transaction job: {e}")
+        return {"processed": 0, "sent": 0, "errors": 1, "error": str(e)}

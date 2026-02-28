@@ -56,6 +56,17 @@ class Config(BaseSettings):
     scheduler_kraftculture_interval_hours: int = Field(
         default=1, alias="SCHEDULER_KRAFTCULTURE_INTERVAL_HOURS"
     )
+    scheduler_bank_transactions_interval_minutes: int = Field(
+        default=5, alias="SCHEDULER_BANK_TRANSACTIONS_INTERVAL_MINUTES"
+    )
+    
+    # Bank Transactions Configuration
+    bank_transactions_whatsapp_number: str = Field(
+        default="", alias="BANK_TRANSACTIONS_WHATSAPP_NUMBER"
+    )
+    bank_transactions_enabled: bool = Field(
+        default=True, alias="BANK_TRANSACTIONS_ENABLED"
+    )
 
     # Path to .env file (for loading env vars)
     class Config:

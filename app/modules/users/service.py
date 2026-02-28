@@ -7,6 +7,7 @@ from app.modules.users.models import User
 from app.modules.users.dto import CreateUserDto, UpdateUserDto, UserResponseDto
 from app.modules.users.types import FindOrCreateResult
 from app.utils.timezone_detection import detect_timezone_from_phone
+from app.utils.datetime import utc_now
 from app.core.db.engine import run_db
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ class UsersService:
             timezone=detected_timezone,
             meta=user_data.meta,
             streak=0,
+            created_at=utc_now(),
         )
 
         db.add(new_user)

@@ -69,4 +69,4 @@ endif
 	@echo "   5. Register the router in app/main.py"
 
 expose:
-	ssh -p 443 -R0:localhost:8000 qr@free.pinggy.io
+	ssh -p 443 -R0:localhost:$(PORT) qr@free.pinggy.io

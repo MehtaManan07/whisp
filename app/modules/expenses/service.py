@@ -149,10 +149,18 @@ class ExpensesService:
                     source_message_id=data.source_message_id,
                     vendor=data.vendor.lower() if data.vendor else None,
                     timestamp=timestamp,
+                    created_at=utc_now(),
                 )
 
                 db.add(new_expense)
                 db.commit()
+                logger.info(
+                    "Expense created: user_id=%s amount=%.2f category_id=%s vendor=%s",
+                    data.user_id,
+                    data.amount,
+                    new_expense.category_id,
+                    new_expense.vendor,
+                )
             except Exception as e:
                 db.rollback()
                 logger.error(f"Database error during expense creation: {str(e)}")

@@ -16,7 +16,12 @@ import json
 from app.core.cache.service import CacheService
 from app.integrations.llm.service import LLMService
 from .constants import CATEGORIES, KNOWN_MERCHANTS, is_valid_category
-from .prompts import build_classification_prompt
+from .prompts import build_classification_prompt, build_query_filter_fallback_prompt
+from .query_mapper import (
+    resolve_query_category_aliases,
+    CATEGORY_CONFIDENCE_THRESHOLD,
+    SUBCATEGORY_CONFIDENCE_THRESHOLD,
+)
 from app.intelligence.intent.types import DTO_UNION
 
 logger = logging.getLogger(__name__)
@@ -44,6 +49,19 @@ class CacheableClassification(TypedDict):
     category: Optional[str]
     subcategory: Optional[str]
     confidence: ConfidenceLevel
+
+
+class QueryFilterResult(TypedDict):
+    """Type-safe query filter classification output."""
+    category_name: Optional[str]
+    subcategory_name: Optional[str]
+    category_confidence: ConfidenceLevel
+    subcategory_confidence: ConfidenceLevel
+    match_layer: Literal["alias", "llm", "null"]
+    alias_score: ConfidenceLevel
+    llm_used: bool
+    null_fallback_used: bool
+    reasoning: Optional[str]
 
 
 class CategoryClassifier:
@@ -341,3 +359,130 @@ class CategoryClassifier:
     def is_low_confidence(self, result: ClassificationResult) -> bool:
         """Check if the classification result has low confidence and needs user confirmation."""
         return result["confidence"] < LOW_CONFIDENCE_THRESHOLD
+
+    async def classify_query_filters(
+        self,
+        message: str,
+        vendor: Optional[str] = None,
+    ) -> QueryFilterResult:
+        """
+        Classify category/subcategory filters for expense-view queries.
+
+        Deterministic alias matching is attempted first for speed and consistency.
+        LLM fallback is used only when alias confidence is insufficient.
+        """
+        alias_result = resolve_query_category_aliases(message)
+        if alias_result["category_name"] is not None:
+            result = QueryFilterResult(
+                category_name=alias_result["category_name"],
+                subcategory_name=alias_result["subcategory_name"],
+                category_confidence=alias_result["category_confidence"],
+                subcategory_confidence=alias_result["subcategory_confidence"],
+                match_layer="alias",
+                alias_score=alias_result["alias_score"],
+                llm_used=False,
+                null_fallback_used=False,
+                reasoning=alias_result["reasoning"],
+            )
+            logger.info(
+                "Query filter classification: layer=%s alias_score=%.3f category=%s subcategory=%s",
+                result["match_layer"],
+                result["alias_score"],
+                result["category_name"],
+                result["subcategory_name"],
+            )
+            return result
+
+        # If the user already provided a vendor filter and no explicit category alias
+        # is present, do not call LLM fallback for category guessing.
+        if vendor:
+            return QueryFilterResult(
+                category_name=None,
+                subcategory_name=None,
+                category_confidence=0.0,
+                subcategory_confidence=0.0,
+                match_layer="null",
+                alias_score=alias_result["alias_score"],
+                llm_used=False,
+                null_fallback_used=True,
+                reasoning="vendor filter present without explicit category signal",
+            )
+
+        fallback = await self._classify_query_filters_with_llm(message, alias_result["alias_score"])
+        logger.info(
+            "Query filter classification: layer=%s alias_score=%.3f llm_used=%s category=%s subcategory=%s "
+            "category_confidence=%.3f subcategory_confidence=%.3f null_fallback=%s",
+            fallback["match_layer"],
+            fallback["alias_score"],
+            fallback["llm_used"],
+            fallback["category_name"],
+            fallback["subcategory_name"],
+            fallback["category_confidence"],
+            fallback["subcategory_confidence"],
+            fallback["null_fallback_used"],
+        )
+        return fallback
+
+    async def _classify_query_filters_with_llm(self, message: str, alias_score: float) -> QueryFilterResult:
+        """Use constrained LLM fallback for query filter extraction."""
+        prompt = build_query_filter_fallback_prompt(message)
+        try:
+            response = await self.llm.complete(
+                prompt=prompt,
+                temperature=0,
+                call_stack="query_categorization",
+            )
+            result = json.loads(response.content)
+        except Exception as exc:
+            logger.warning("Query LLM fallback failed: %s", exc)
+            return QueryFilterResult(
+                category_name=None,
+                subcategory_name=None,
+                category_confidence=0.0,
+                subcategory_confidence=0.0,
+                match_layer="null",
+                alias_score=alias_score,
+                llm_used=True,
+                null_fallback_used=True,
+                reasoning=f"llm fallback failed: {exc}",
+            )
+
+        category = result.get("category_name")
+        subcategory = result.get("subcategory_name")
+        category_confidence = float(result.get("category_confidence", 0.0))
+        subcategory_confidence = float(result.get("subcategory_confidence", 0.0))
+
+        if not isinstance(category, str) or category not in CATEGORIES:
+            category = None
+            category_confidence = 0.0
+
+        if not isinstance(subcategory, str):
+            subcategory = None
+            subcategory_confidence = 0.0
+
+        # Keep category/subcategory as separate decisions.
+        if category is not None and subcategory is not None and not is_valid_category(category, subcategory):
+            subcategory = None
+            subcategory_confidence = 0.0
+
+        if category_confidence < CATEGORY_CONFIDENCE_THRESHOLD:
+            category = None
+            subcategory = None
+            subcategory_confidence = 0.0
+
+        if subcategory_confidence < SUBCATEGORY_CONFIDENCE_THRESHOLD:
+            subcategory = None
+
+        null_fallback_used = category is None
+
+        return QueryFilterResult(
+            category_name=category,
+            subcategory_name=subcategory,
+            category_confidence=category_confidence,
+            subcategory_confidence=subcategory_confidence,
+            match_layer="null" if null_fallback_used else "llm",
+            alias_score=alias_score,
+            llm_used=True,
+            null_fallback_used=null_fallback_used,
+            reasoning=result.get("reasoning"),
+        )

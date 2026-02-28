@@ -68,10 +68,11 @@
 
 
 from datetime import datetime
-from sqlalchemy import DateTime, func
+from sqlalchemy import DateTime, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from typing import Optional
 import uuid
+from app.utils.datetime import utc_now
 
 
 class Base(DeclarativeBase):
@@ -93,11 +94,11 @@ class BaseModel(Base):
     )
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=text("(CURRENT_TIMESTAMP)"), nullable=False
     )
 
     updated_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), onupdate=func.now(), nullable=True
+        DateTime(timezone=True), onupdate=utc_now, nullable=True
     )
     
     deleted_at: Mapped[Optional[datetime]] = mapped_column(

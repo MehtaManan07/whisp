@@ -103,11 +103,13 @@ def build_dto_prompt(message: str, intent: IntentType, user_id: int) -> str:
         expense_query_guidance = """
 ### Expense Query Guidance:
 - **CRITICAL**: Category/subcategory names (like "salon", "groceries", "food", "transport", etc.) should NEVER be put in the `note` field. Categories are handled separately by the system.
+- **CRITICAL**: Do NOT include `category_name` or `subcategory_name` in output. They are resolved by a separate deterministic classifier.
 - **note**: ONLY extract text as `note` when the user explicitly uses phrases like "with note", "note says", "note containing", or "notes about".
 - When a user says "show me X expenses" where X is a category/subcategory name, do NOT put X in the note field - leave note as null.
 - **Examples**:
-  - "show me all salon expenses" → {"user_id": 1} (note: null, category handled separately)
-  - "show grocery expenses" → {"user_id": 1} (note: null, category handled separately)
+  - "show me all salon expenses" → {"user_id": 1} (note: null, categories handled separately)
+  - "show grocery expenses" → {"user_id": 1} (note: null, categories handled separately)
+  - "show me all food expenses in last 5 days" → {"user_id": 1, "start_date": "...", "end_date": "..."} (note: null, categories handled separately)
   - "show expenses with note 'dinner'" → {"user_id": 1, "note": "dinner"}
   - "find expenses where note contains uber" → {"user_id": 1, "note": "uber"}
   - "expenses with note about birthday gift" → {"user_id": 1, "note": "birthday gift"}
