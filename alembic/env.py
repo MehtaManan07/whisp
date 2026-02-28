@@ -1,9 +1,7 @@
-import asyncio
 import os
 from logging.config import fileConfig
-from sqlalchemy import pool
+from sqlalchemy import create_engine, pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import create_async_engine
 from alembic import context
 from dotenv import load_dotenv
 
@@ -22,12 +20,15 @@ load_dotenv()
 # this is the Alembic Config object
 config = context.config
 
-# Override sqlalchemy.url from environment variable
-db_url = os.getenv("DB_URL")
-if db_url:
-    config.set_main_option("sqlalchemy.url", db_url)
-else:
-    raise RuntimeError("DB_URL environment variable not set")
+# Build Turso connection URL
+TURSO_DATABASE_URL = os.getenv("TURSO_DATABASE_URL")
+TURSO_AUTH_TOKEN = os.getenv("TURSO_AUTH_TOKEN")
+
+if not TURSO_DATABASE_URL or not TURSO_AUTH_TOKEN:
+    raise RuntimeError("TURSO_DATABASE_URL and TURSO_AUTH_TOKEN must be set in .env")
+
+db_url = TURSO_DATABASE_URL.replace("libsql://", "sqlite+libsql://") + "?secure=true"
+config.set_main_option("sqlalchemy.url", db_url)
 
 # Interpret the config file for Python logging.
 if config.config_file_name is not None:
@@ -47,6 +48,7 @@ def run_migrations_offline() -> None:
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
         compare_server_default=True,
+        render_as_batch=True,
     )
 
     with context.begin_transaction():
@@ -59,34 +61,23 @@ def do_run_migrations(connection: Connection) -> None:
         target_metadata=target_metadata,
         compare_type=True,
         compare_server_default=True,
+        render_as_batch=True,
     )
 
     with context.begin_transaction():
         context.run_migrations()
 
 
-async def run_async_migrations() -> None:
-    """Run migrations in 'online' mode with async engine."""
-    url = config.get_main_option("sqlalchemy.url")
-    if not url:
-        raise RuntimeError("No database URL configured")
-
-    # Use StaticPool for SQLite to avoid connection issues
-    connectable = create_async_engine(
-        url,
-        poolclass=pool.StaticPool if url.startswith("sqlite") else pool.NullPool,
-        connect_args={"check_same_thread": False} if url.startswith("sqlite") else {},
-    )
-
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
-
-    await connectable.dispose()
-
-
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
-    asyncio.run(run_async_migrations())
+    connectable = create_engine(
+        db_url,
+        connect_args={"auth_token": TURSO_AUTH_TOKEN},
+        poolclass=pool.NullPool,
+    )
+
+    with connectable.connect() as connection:
+        do_run_migrations(connection)
 
 
 if context.is_offline_mode():

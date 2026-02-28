@@ -1,39 +1,36 @@
-from typing import AsyncGenerator
+import asyncio
+from typing import TypeVar, Callable
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
+
 from app.core.config import config as settings
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import StaticPool
 
+T = TypeVar("T")
 
-# Async SQLAlchemy engine for SQLite
-# SQLite requires StaticPool for async operations to work correctly
-engine = create_async_engine(
-    settings.db_url,
+_url = settings.turso_database_url.replace("libsql://", "sqlite+libsql://") + "?secure=true"
+
+engine = create_engine(
+    _url,
+    connect_args={"auth_token": settings.turso_auth_token},
     echo=False,
-    poolclass=StaticPool,  # SQLite with async requires StaticPool
-    future=True,  # Use SQLAlchemy 2.0 features
-    connect_args={"check_same_thread": False},  # Required for SQLite
+    pool_pre_ping=True,
+    pool_recycle=3600,
 )
 
-# Session factory - similar to TypeORM's Repository pattern
-AsyncSessionLocal = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autoflush=False,  # Manual control over flushing
-)
+SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 
-async def get_db_util() -> AsyncGenerator[AsyncSession, None]:
-    """
-    Database dependency for FastAPI.
-    Similar to NestJS's @InjectRepository() but as a dependency.
-    """
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+async def run_db(fn: Callable[[Session], T]) -> T:
+    """Run a sync DB function in a thread pool for async compatibility."""
+    def _execute():
+        with SessionLocal() as session:
+            try:
+                result = fn(session)
+                session.commit()
+                return result
+            except Exception:
+                session.rollback()
+                raise
+
+    return await asyncio.to_thread(_execute)

@@ -2,7 +2,6 @@ import logging
 from fastapi import APIRouter, Depends, Query, Body
 from typing import Dict, Any
 from app.core.dependencies import (
-    DatabaseDep,
     WhatsAppServiceDep,
     IntentClassifierDep,
 )
@@ -28,19 +27,15 @@ async def verify_webhook(
 @router.post("/webhook")
 async def handle_webhook(
     payload: Dict[str, Any],
-    db: DatabaseDep,
     whatsapp_service: WhatsAppServiceDep,
 ) -> Dict[str, str]:
     """Handle incoming WhatsApp webhook"""
     try:
-        # Try to parse as WebhookPayload
         validated_payload = WebhookPayload(**payload)
-        await whatsapp_service.handle_webhook(validated_payload, db)
+        await whatsapp_service.handle_webhook(validated_payload)
     except Exception as e:
-        # Log validation errors but don't fail the request
-        # WhatsApp sends many types of webhooks (status updates, etc.)
         logger.warning(f"Webhook validation/processing failed: {str(e)[:200]}")
-    
+
     return {"status": "ok"}
 
 
@@ -52,15 +47,14 @@ async def send_text(
     """Send text message via WhatsApp"""
     if not body.recipient or not body.recipient.strip():
         raise ValidationError("Recipient is required")
-    
+
     if not body.message or not body.message.strip():
         raise ValidationError("Message content is required")
-    
+
     result = await whatsapp_service.send_text(body.recipient, body.message, True)
     return result
 
 
-# Example endpoint showing how to use IntentClassifier directly
 @router.post("/classify-intent")
 async def classify_intent(
     intent_classifier: IntentClassifierDep,
@@ -69,6 +63,6 @@ async def classify_intent(
     """Classify intent of a message (for testing)"""
     if not message or not message.strip():
         raise ValidationError("Message is required")
-    
+
     intent = await intent_classifier.classify(message)
     return {"message": message, "intent": intent.value}

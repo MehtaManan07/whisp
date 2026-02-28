@@ -1,5 +1,5 @@
 import logging
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import select, update
 from typing import Optional, List
 
@@ -7,6 +7,7 @@ from app.modules.users.models import User
 from app.modules.users.dto import CreateUserDto, UpdateUserDto, UserResponseDto
 from app.modules.users.types import FindOrCreateResult
 from app.utils.timezone_detection import detect_timezone_from_phone
+from app.core.db.engine import run_db
 
 logger = logging.getLogger(__name__)
 
@@ -15,18 +16,18 @@ class UsersService:
     def __init__(self):
         self.logger = logger
 
-    async def find_or_create(
-        self, db: AsyncSession, user_data: CreateUserDto
-    ) -> FindOrCreateResult:
-        """Find existing user or create new one with automatic timezone detection"""
-        # Try to find existing user
-        result = await db.execute(select(User).where(User.wa_id == user_data.wa_id))
+    # -------------------------------------------------------------------------
+    # Sync helpers (called from within run_db blocks in other services)
+    # -------------------------------------------------------------------------
+
+    def find_or_create_sync(self, db: Session, user_data: CreateUserDto) -> FindOrCreateResult:
+        """Find existing user or create new one (sync)."""
+        result = db.execute(select(User).where(User.wa_id == user_data.wa_id))
         user = result.scalar_one_or_none()
 
         if user:
             return {"user": user, "is_existing_user": True}
 
-        # Detect timezone from phone number
         detected_timezone = "UTC"
         if user_data.phone_number:
             detected_timezone = detect_timezone_from_phone(user_data.phone_number)
@@ -34,7 +35,6 @@ class UsersService:
                 f"Detected timezone {detected_timezone} for phone {user_data.phone_number}"
             )
 
-        # Create new user
         new_user = User(
             wa_id=user_data.wa_id,
             name=user_data.name,
@@ -45,82 +45,92 @@ class UsersService:
         )
 
         db.add(new_user)
-        await db.commit()
-        await db.refresh(new_user)
+        db.commit()
+        db.refresh(new_user)
 
         return {"user": new_user, "is_existing_user": False}
 
-    async def get_or_create_by_phone(self, db: AsyncSession, phone_number: str) -> User:
-        """Get or create user by phone number (for WhatsApp integration)"""
-        # This method is used by the orchestrator
+    def get_user_by_id_sync(self, db: Session, user_id: int) -> Optional[User]:
+        result = db.execute(select(User).where(User.id == user_id))
+        return result.scalar_one_or_none()
+
+    # -------------------------------------------------------------------------
+    # Async public API
+    # -------------------------------------------------------------------------
+
+    async def find_or_create(self, user_data: CreateUserDto) -> FindOrCreateResult:
+        return await run_db(lambda db: self.find_or_create_sync(db, user_data))
+
+    async def get_or_create_by_phone(self, phone_number: str) -> User:
         user_data = CreateUserDto(
-            wa_id=phone_number,  # Use phone as wa_id for now
+            wa_id=phone_number,
             phone_number=phone_number,
             name=None,
             meta=None,
         )
-        result = await self.find_or_create(db, user_data)
+        result = await self.find_or_create(user_data)
         return result["user"]
 
-    async def get_user_by_id(self, db: AsyncSession, user_id: int) -> Optional[User]:
-        """Get user by ID"""
-        result = await db.execute(select(User).where(User.id == user_id))
-        return result.scalar_one_or_none()
+    async def get_user_by_id(self, user_id: int) -> Optional[User]:
+        return await run_db(lambda db: self.get_user_by_id_sync(db, user_id))
 
-    async def get_user_by_wa_id(self, db: AsyncSession, wa_id: str) -> Optional[User]:
-        """Get user by WhatsApp ID"""
-        result = await db.execute(select(User).where(User.wa_id == wa_id))
-        return result.scalar_one_or_none()
+    async def get_user_by_wa_id(self, wa_id: str) -> Optional[User]:
+        def _get(db: Session) -> Optional[User]:
+            result = db.execute(select(User).where(User.wa_id == wa_id))
+            return result.scalar_one_or_none()
+
+        return await run_db(_get)
 
     async def get_all_users(
-        self, db: AsyncSession, limit: int = 100, offset: int = 0
+        self, limit: int = 100, offset: int = 0
     ) -> List[User]:
-        """Get all users with pagination"""
-        result = await db.execute(
-            select(User).offset(offset).limit(limit).order_by(User.created_at.desc())
-        )
-        return list(result.scalars().all())
+        def _get(db: Session) -> List[User]:
+            result = db.execute(
+                select(User).offset(offset).limit(limit).order_by(User.created_at.desc())
+            )
+            return list(result.scalars().all())
+
+        return await run_db(_get)
 
     async def update_user(
-        self, db: AsyncSession, user_id: int, update_data: UpdateUserDto
+        self, user_id: int, update_data: UpdateUserDto
     ) -> Optional[User]:
-        """Update user by ID - Optimized to use 1 query instead of 3"""
-        # Update only provided fields
-        update_dict = update_data.model_dump(exclude_unset=True)
-        if not update_dict:
-            # If no updates, just fetch and return
-            return await self.get_user_by_id(db, user_id)
+        def _update(db: Session) -> Optional[User]:
+            update_dict = update_data.model_dump(exclude_unset=True)
+            if not update_dict:
+                return self.get_user_by_id_sync(db, user_id)
 
-        # Fetch and update in same transaction using RETURNING clause
-        # This is more efficient than separate fetch-update-fetch
-        result = await db.execute(
-            update(User).where(User.id == user_id).values(**update_dict).returning(User)
-        )
-        updated_user = result.scalar_one_or_none()
+            result = db.execute(
+                update(User).where(User.id == user_id).values(**update_dict).returning(User)
+            )
+            updated_user = result.scalar_one_or_none()
 
-        if updated_user:
-            await db.commit()
+            if updated_user:
+                db.commit()
 
-        return updated_user
+            return updated_user
 
-    async def delete_user(self, db: AsyncSession, user_id: int) -> bool:
-        """Delete user by ID"""
-        user = await self.get_user_by_id(db, user_id)
-        if not user:
-            return False
+        return await run_db(_update)
 
-        await db.delete(user)
-        await db.commit()
-        return True
+    async def delete_user(self, user_id: int) -> bool:
+        def _delete(db: Session) -> bool:
+            user = self.get_user_by_id_sync(db, user_id)
+            if not user:
+                return False
+
+            db.delete(user)
+            db.commit()
+            return True
+
+        return await run_db(_delete)
 
     async def update_user_timezone(
-        self, db: AsyncSession, user_id: int, timezone: str
+        self, user_id: int, timezone: str
     ) -> Optional[User]:
-        """Update user's timezone"""
         update_data = UpdateUserDto(
             timezone=timezone, name=None, phone_number=None, meta=None
         )
-        return await self.update_user(db, user_id, update_data)
+        return await self.update_user(user_id, update_data)
 
     def get_user_timezone(self, user: User) -> str:
         """Get user's timezone, with fallback to UTC"""

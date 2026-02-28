@@ -6,11 +6,12 @@ Uses the main database instead of a separate cache database.
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import select, delete, update, func
 from sqlalchemy.exc import IntegrityError
 
 from app.core.cache.models import Cache
+from app.core.db.engine import run_db
 
 logger = logging.getLogger(__name__)
 
@@ -18,68 +19,47 @@ logger = logging.getLogger(__name__)
 class SQLAlchemyCacheClient:
     """SQLAlchemy-based cache client with TTL support."""
 
-    def __init__(self, db_session_factory):
-        """
-        Initialize SQLAlchemy cache client.
-
-        Args:
-            db_session_factory: Factory function to get database sessions
-        """
-        self.db_session_factory = db_session_factory
+    def __init__(self):
+        pass
 
     @property
     def is_connected(self) -> bool:
-        """Cache is always available when database is available."""
         return True
 
-    async def _cleanup_expired(self, db: AsyncSession):
-        """Remove expired entries from cache."""
+    def _cleanup_expired_sync(self, db: Session):
+        """Remove expired entries from cache (sync)."""
         try:
             now = datetime.now(timezone.utc)
-            await db.execute(
+            db.execute(
                 delete(Cache).where(
                     Cache.expires_at.isnot(None),
                     Cache.expires_at < now
                 )
             )
-            await db.commit()
+            db.commit()
         except Exception as e:
             logger.warning(f"Failed to cleanup expired entries: {e}")
-            await db.rollback()
+            db.rollback()
 
     async def set(self, key: str, value: str, ttl: Optional[int] = None) -> bool:
-        """
-        Set a key-value pair in cache.
+        def _set(db: Session) -> bool:
+            try:
+                expires_at = None
+                if ttl:
+                    expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl)
 
-        Args:
-            key: Cache key
-            value: Value to store (should be string/serialized)
-            ttl: Time to live in seconds (optional)
-
-        Returns:
-            bool: True if successful
-        """
-        try:
-            expires_at = None
-            if ttl:
-                expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl)
-
-            async with self.db_session_factory() as db:
-                # Check if key exists
-                result = await db.execute(
+                result = db.execute(
                     select(Cache).where(Cache.key == key)
                 )
                 existing = result.scalar_one_or_none()
 
                 if existing:
-                    # Update existing
-                    await db.execute(
+                    db.execute(
                         update(Cache)
                         .where(Cache.key == key)
                         .values(value=value, expires_at=expires_at)
                     )
                 else:
-                    # Insert new
                     cache_entry = Cache(
                         key=key,
                         value=value,
@@ -88,82 +68,59 @@ class SQLAlchemyCacheClient:
                     )
                     db.add(cache_entry)
 
-                await db.commit()
+                db.commit()
 
-                # Periodically cleanup expired entries (every 100th set)
                 import random
                 if random.randint(1, 100) == 1:
-                    await self._cleanup_expired(db)
+                    self._cleanup_expired_sync(db)
 
-            return True
+                return True
 
-        except Exception as e:
-            logger.error(f"Failed to set cache key {key}: {e}")
-            return False
+            except Exception as e:
+                logger.error(f"Failed to set cache key {key}: {e}")
+                db.rollback()
+                return False
+
+        return await run_db(_set)
 
     async def get(self, key: str) -> Optional[str]:
-        """
-        Get a value from cache.
-
-        Args:
-            key: Cache key
-
-        Returns:
-            Optional[str]: Value if found and not expired, None otherwise
-        """
-        try:
-            async with self.db_session_factory() as db:
+        def _get(db: Session) -> Optional[str]:
+            try:
                 now = datetime.now(timezone.utc)
-                result = await db.execute(
+                result = db.execute(
                     select(Cache.value)
                     .where(Cache.key == key)
                     .where(
                         (Cache.expires_at.is_(None)) | (Cache.expires_at > now)
                     )
                 )
-                row = result.scalar_one_or_none()
-                return row
+                return result.scalar_one_or_none()
+            except Exception as e:
+                logger.error(f"Failed to get cache key {key}: {e}")
+                return None
 
-        except Exception as e:
-            logger.error(f"Failed to get cache key {key}: {e}")
-            return None
+        return await run_db(_get)
 
     async def delete(self, key: str) -> int:
-        """
-        Delete a key from cache.
-
-        Args:
-            key: Cache key
-
-        Returns:
-            int: Number of rows deleted
-        """
-        try:
-            async with self.db_session_factory() as db:
-                result = await db.execute(
+        def _delete(db: Session) -> int:
+            try:
+                result = db.execute(
                     delete(Cache).where(Cache.key == key)
                 )
-                await db.commit()
+                db.commit()
                 return result.rowcount or 0
+            except Exception as e:
+                logger.error(f"Failed to delete cache key {key}: {e}")
+                db.rollback()
+                return 0
 
-        except Exception as e:
-            logger.error(f"Failed to delete cache key {key}: {e}")
-            return 0
+        return await run_db(_delete)
 
     async def exists(self, key: str) -> int:
-        """
-        Check if a key exists in cache.
-
-        Args:
-            key: Cache key
-
-        Returns:
-            int: 1 if exists and not expired, 0 otherwise
-        """
-        try:
-            async with self.db_session_factory() as db:
+        def _exists(db: Session) -> int:
+            try:
                 now = datetime.now(timezone.utc)
-                result = await db.execute(
+                result = db.execute(
                     select(func.count())
                     .select_from(Cache)
                     .where(Cache.key == key)
@@ -171,85 +128,55 @@ class SQLAlchemyCacheClient:
                         (Cache.expires_at.is_(None)) | (Cache.expires_at > now)
                     )
                 )
-                count = result.scalar_one()
-                return count
+                return result.scalar_one()
+            except Exception as e:
+                logger.error(f"Failed to check existence of key {key}: {e}")
+                return 0
 
-        except Exception as e:
-            logger.error(f"Failed to check existence of key {key}: {e}")
-            return 0
+        return await run_db(_exists)
 
     async def keys(self, pattern: str) -> list[str]:
-        """
-        Get all keys matching a pattern.
-
-        Args:
-            pattern: Pattern to match (e.g., "user:*")
-                    Uses SQL LIKE syntax internally
-
-        Returns:
-            list[str]: List of matching keys
-        """
-        try:
-            # Convert Redis pattern to SQL LIKE pattern
-            sql_pattern = pattern.replace("*", "%").replace("?", "_")
-
-            async with self.db_session_factory() as db:
+        def _keys(db: Session) -> list[str]:
+            try:
+                sql_pattern = pattern.replace("*", "%").replace("?", "_")
                 now = datetime.now(timezone.utc)
-                result = await db.execute(
+                result = db.execute(
                     select(Cache.key)
                     .where(Cache.key.like(sql_pattern))
                     .where(
                         (Cache.expires_at.is_(None)) | (Cache.expires_at > now)
                     )
                 )
-                rows = result.scalars().all()
-                return list(rows)
+                return list(result.scalars().all())
+            except Exception as e:
+                logger.error(f"Failed to get keys with pattern {pattern}: {e}")
+                return []
 
-        except Exception as e:
-            logger.error(f"Failed to get keys with pattern {pattern}: {e}")
-            return []
+        return await run_db(_keys)
 
     async def expire(self, key: str, ttl: int) -> int:
-        """
-        Set expiration time for a key.
-
-        Args:
-            key: Cache key
-            ttl: Time to live in seconds
-
-        Returns:
-            int: 1 if successful, 0 otherwise
-        """
-        try:
-            expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl)
-
-            async with self.db_session_factory() as db:
-                result = await db.execute(
+        def _expire(db: Session) -> int:
+            try:
+                expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl)
+                result = db.execute(
                     update(Cache)
                     .where(Cache.key == key)
                     .values(expires_at=expires_at)
                 )
-                await db.commit()
+                db.commit()
                 return 1 if result.rowcount > 0 else 0
+            except Exception as e:
+                logger.error(f"Failed to set expiration for key {key}: {e}")
+                db.rollback()
+                return 0
 
-        except Exception as e:
-            logger.error(f"Failed to set expiration for key {key}: {e}")
-            return 0
+        return await run_db(_expire)
 
     async def incr(self, key: str) -> Optional[int]:
-        """
-        Increment a numeric key by 1.
-
-        Args:
-            key: Cache key
-
-        Returns:
-            Optional[int]: New value after increment, None on error
-        """
-        try:
-            async with self.db_session_factory() as db:
+        def _incr(db: Session) -> Optional[int]:
+            try:
                 now = datetime.now(timezone.utc)
-                result = await db.execute(
+                result = db.execute(
                     select(Cache.value, Cache.expires_at)
                     .where(Cache.key == key)
                     .where(
@@ -259,17 +186,14 @@ class SQLAlchemyCacheClient:
                 row = result.one_or_none()
 
                 if row:
-                    # Increment existing value
                     current_value = int(row[0])
                     new_value = current_value + 1
-
-                    await db.execute(
+                    db.execute(
                         update(Cache)
                         .where(Cache.key == key)
                         .values(value=str(new_value))
                     )
                 else:
-                    # Initialize to 1
                     new_value = 1
                     cache_entry = Cache(
                         key=key,
@@ -278,28 +202,21 @@ class SQLAlchemyCacheClient:
                     )
                     db.add(cache_entry)
 
-                await db.commit()
+                db.commit()
                 return new_value
 
-        except Exception as e:
-            logger.error(f"Failed to increment key {key}: {e}")
-            return None
+            except Exception as e:
+                logger.error(f"Failed to increment key {key}: {e}")
+                db.rollback()
+                return None
+
+        return await run_db(_incr)
 
     async def incrby(self, key: str, amount: int) -> Optional[int]:
-        """
-        Increment a numeric key by specified amount.
-
-        Args:
-            key: Cache key
-            amount: Amount to increment by
-
-        Returns:
-            Optional[int]: New value after increment, None on error
-        """
-        try:
-            async with self.db_session_factory() as db:
+        def _incrby(db: Session) -> Optional[int]:
+            try:
                 now = datetime.now(timezone.utc)
-                result = await db.execute(
+                result = db.execute(
                     select(Cache.value, Cache.expires_at)
                     .where(Cache.key == key)
                     .where(
@@ -309,17 +226,14 @@ class SQLAlchemyCacheClient:
                 row = result.one_or_none()
 
                 if row:
-                    # Increment existing value
                     current_value = int(row[0])
                     new_value = current_value + amount
-
-                    await db.execute(
+                    db.execute(
                         update(Cache)
                         .where(Cache.key == key)
                         .values(value=str(new_value))
                     )
                 else:
-                    # Initialize to amount
                     new_value = amount
                     cache_entry = Cache(
                         key=key,
@@ -328,9 +242,12 @@ class SQLAlchemyCacheClient:
                     )
                     db.add(cache_entry)
 
-                await db.commit()
+                db.commit()
                 return new_value
 
-        except Exception as e:
-            logger.error(f"Failed to increment key {key} by {amount}: {e}")
-            return None
+            except Exception as e:
+                logger.error(f"Failed to increment key {key} by {amount}: {e}")
+                db.rollback()
+                return None
+
+        return await run_db(_incrby)

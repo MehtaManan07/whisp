@@ -4,7 +4,6 @@ from datetime import timedelta
 import logging
 
 from app.core.dependencies import (
-    DatabaseDep,
     ReminderServiceDep,
     UserServiceDep,
     WhatsAppServiceDep,
@@ -26,15 +25,6 @@ logger = logging.getLogger(__name__)
 
 
 def verify_process_token(x_process_token: str = Header(alias="x-process-token")):
-    """
-    Verify the process token from request headers to prevent unauthorized access.
-
-    Args:
-        x_process_token: Token from x-process-token header
-
-    Raises:
-        HTTPException: If token is missing or invalid
-    """
     if not config.reminders_process_token:
         logger.error("REMINDERS_PROCESS_TOKEN not configured in environment")
         raise HTTPException(status_code=500, detail="Process token not configured")
@@ -53,7 +43,6 @@ def verify_process_token(x_process_token: str = Header(alias="x-process-token"))
 @router.post("/", response_model=ReminderResponseDTO, status_code=201)
 async def create_reminder(
     data: CreateReminderDTO,
-    db: DatabaseDep,
     reminder_service: ReminderServiceDep,
     user_service: UserServiceDep,
     user_id: int = Query(..., description="User ID"),
@@ -62,11 +51,11 @@ async def create_reminder(
     if user_id <= 0:
         raise ValidationError("User ID must be a positive integer")
 
-    user = await user_service.get_user_by_id(db, user_id)
+    user = await user_service.get_user_by_id(user_id)
     user_timezone = user.timezone if user else "UTC"
 
     reminder = await reminder_service.create_reminder(
-        db, user_id, data, user_timezone=user_timezone or "UTC"
+        user_id, data, user_timezone=user_timezone or "UTC"
     )
     return ReminderResponseDTO.model_validate(reminder)
 
@@ -74,7 +63,6 @@ async def create_reminder(
 @router.get("/{reminder_id}", response_model=ReminderResponseDTO)
 async def get_reminder(
     reminder_id: int,
-    db: DatabaseDep,
     reminder_service: ReminderServiceDep,
     user_id: int = Query(..., description="User ID"),
 ):
@@ -82,18 +70,15 @@ async def get_reminder(
     if user_id <= 0:
         raise ValidationError("User ID must be a positive integer")
 
-    reminder = await reminder_service.get_reminder(db, reminder_id, user_id)
+    reminder = await reminder_service.get_reminder(reminder_id, user_id)
     return ReminderResponseDTO.model_validate(reminder)
 
 
 @router.get("/", response_model=ReminderListResponseDTO)
 async def list_reminders(
-    db: DatabaseDep,
     reminder_service: ReminderServiceDep,
     user_id: int = Query(..., description="User ID"),
-    reminder_type: Optional[ReminderType] = Query(
-        None, description="Filter by reminder type"
-    ),
+    reminder_type: Optional[ReminderType] = Query(None, description="Filter by reminder type"),
     is_active: Optional[bool] = Query(True, description="Filter by active status"),
 ):
     """List all reminders for a user with optional filters"""
@@ -103,7 +88,7 @@ async def list_reminders(
     list_dto = ListRemindersDTO(
         user_id=user_id, reminder_type=reminder_type, is_active=is_active
     )
-    reminders = await reminder_service.list_reminders(db, list_dto)
+    reminders = await reminder_service.list_reminders(list_dto)
     reminder_dtos = [ReminderResponseDTO.model_validate(r) for r in reminders]
     active_count = sum(1 for r in reminders if r.is_active)
 
@@ -116,7 +101,6 @@ async def list_reminders(
 async def update_reminder(
     data: UpdateReminderDTO,
     reminder_id: int,
-    db: DatabaseDep,
     reminder_service: ReminderServiceDep,
     user_service: UserServiceDep,
     user_id: int = Query(..., description="User ID"),
@@ -125,11 +109,11 @@ async def update_reminder(
     if user_id <= 0:
         raise ValidationError("User ID must be a positive integer")
 
-    user = await user_service.get_user_by_id(db, user_id)
+    user = await user_service.get_user_by_id(user_id)
     user_timezone = user.timezone if user else "UTC"
 
     reminder = await reminder_service.update_reminder(
-        db, reminder_id, user_id, data, user_timezone=user_timezone or "UTC"
+        reminder_id, user_id, data, user_timezone=user_timezone or "UTC"
     )
     return ReminderResponseDTO.model_validate(reminder)
 
@@ -137,7 +121,6 @@ async def update_reminder(
 @router.delete("/{reminder_id}", status_code=204)
 async def delete_reminder(
     reminder_id: int,
-    db: DatabaseDep,
     reminder_service: ReminderServiceDep,
     user_id: int = Query(..., description="User ID"),
 ):
@@ -145,7 +128,7 @@ async def delete_reminder(
     if user_id <= 0:
         raise ValidationError("User ID must be a positive integer")
 
-    await reminder_service.delete_reminder(db, reminder_id, user_id)
+    await reminder_service.delete_reminder(reminder_id, user_id)
     return None
 
 
@@ -153,7 +136,6 @@ async def delete_reminder(
 async def snooze_reminder(
     data: SnoozeReminderDTO,
     reminder_id: int,
-    db: DatabaseDep,
     reminder_service: ReminderServiceDep,
     user_id: int = Query(..., description="User ID"),
 ):
@@ -162,67 +144,51 @@ async def snooze_reminder(
         raise ValidationError("User ID must be a positive integer")
 
     duration = timedelta(minutes=data.duration_minutes)
-    reminder = await reminder_service.snooze_reminder(
-        db, reminder_id, user_id, duration
-    )
+    reminder = await reminder_service.snooze_reminder(reminder_id, user_id, duration)
     return ReminderResponseDTO.model_validate(reminder)
 
 
 @router.post("/{reminder_id}/complete", response_model=ReminderResponseDTO)
 async def complete_reminder(
     reminder_id: int,
-    db: DatabaseDep,
     reminder_service: ReminderServiceDep,
     user_service: UserServiceDep,
     user_id: int = Query(..., description="User ID"),
 ):
-    """Mark a reminder as completed (one-time) or schedule next occurrence (recurring)"""
+    """Mark a reminder as completed"""
     if user_id <= 0:
         raise ValidationError("User ID must be a positive integer")
 
-    user = await user_service.get_user_by_id(db, user_id)
+    user = await user_service.get_user_by_id(user_id)
     user_timezone = user.timezone if user else "UTC"
 
     reminder = await reminder_service.complete_reminder(
-        db, reminder_id, user_id, user_timezone=user_timezone or "UTC"
+        reminder_id, user_id, user_timezone=user_timezone or "UTC"
     )
     return ReminderResponseDTO.model_validate(reminder)
 
 
 @router.get("/due/list", response_model=List[ReminderResponseDTO])
 async def get_due_reminders(
-    db: DatabaseDep,
     reminder_service: ReminderServiceDep,
-    limit: int = Query(
-        100, ge=1, le=500, description="Maximum number of due reminders to fetch"
-    ),
+    limit: int = Query(100, ge=1, le=500, description="Maximum number of due reminders to fetch"),
 ):
     """Get all reminders that are due for triggering (internal use)"""
-    reminders = await reminder_service.get_due_reminders(db, limit)
+    reminders = await reminder_service.get_due_reminders(limit)
     return [ReminderResponseDTO.model_validate(r) for r in reminders]
 
 
 @router.post("/fix-overdue", status_code=200)
 async def fix_overdue_reminders(
-    db: DatabaseDep,
     reminder_service: ReminderServiceDep,
     user_service: UserServiceDep,
-    user_id: Optional[int] = Query(
-        None,
-        description="User ID to fix reminders for (optional, fixes all users if not provided)",
-    ),
+    user_id: Optional[int] = Query(None, description="User ID to fix reminders for"),
 ):
-    """
-    Fix overdue recurring reminders by recalculating their next trigger times.
-
-    This endpoint is useful after fixing bugs in the trigger calculation logic
-    to update existing reminders that are stuck in an overdue state.
-    """
-
-    user = await user_service.get_user_by_id(db, user_id) if user_id else None
+    """Fix overdue recurring reminders by recalculating their next trigger times."""
+    user = await user_service.get_user_by_id(user_id) if user_id else None
     user_timezone = user.timezone if user else "UTC"
     fixed_count = await reminder_service.fix_overdue_reminders(
-        db, user_id, user_timezone=user_timezone or "UTC"
+        user_id, user_timezone=user_timezone or "UTC"
     )
     return {
         "message": f"Fixed {fixed_count} overdue reminder(s)",
@@ -231,7 +197,6 @@ async def fix_overdue_reminders(
     }
 
 
-# trigger reminder for given reminder id
 @router.post(
     "/{reminder_id}/process",
     status_code=200,
@@ -239,19 +204,12 @@ async def fix_overdue_reminders(
 )
 async def process_triggered_reminder(
     reminder_id: int,
-    db: DatabaseDep,
     reminder_service: ReminderServiceDep,
     user_service: UserServiceDep,
     whatsapp_service: WhatsAppServiceDep,
 ):
-    """
-    Process a specific reminder by ID.
-    This endpoint is designed to be called by scheduled cron jobs.
-
-    Requires authentication via X-Process-Token header to prevent unauthorized access.
-    """
+    """Process a specific reminder by ID (called by cron jobs)."""
     return await reminder_service.process_single_reminder(
-        db=db,
         reminder_id=reminder_id,
         user_service=user_service,
         whatsapp_service=whatsapp_service,

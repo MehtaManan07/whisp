@@ -12,15 +12,17 @@ Usage:
     python -m scripts.backfill_deodap_orders
 """
 
-import asyncio
 import logging
 from datetime import datetime
 
-from sqlalchemy import select, String, DateTime, Boolean, Integer, ForeignKey
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase
-from sqlalchemy.pool import StaticPool
+from sqlalchemy import select, create_engine, String, DateTime, Boolean, Integer, ForeignKey
+from sqlalchemy.orm import sessionmaker, Session, Mapped, mapped_column, DeclarativeBase
 from typing import Optional
+from dotenv import load_dotenv
+import os
+
+# Load env vars first
+load_dotenv()
 
 # Setup logging
 logging.basicConfig(
@@ -70,42 +72,37 @@ class DeodapOrderItemStandalone(Base):
     quantity: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
 
-async def backfill_deodap_orders():
+def backfill_deodap_orders():
     """Fetch and store all Deodap order emails from Jan 22 till today."""
-    
-    # Import only what we need - avoid importing models that trigger mapper cascade
+
     from app.core.config import config
     from app.integrations.gmail.service import GmailService
     from app.modules.kraftculture.service import parse_webkul_order_email
-    
-    # Create standalone engine and session (avoid importing app engine)
-    engine = create_async_engine(
-        config.db_url,
+
+    # Build Turso URL
+    turso_url = config.turso_database_url.replace("libsql://", "sqlite+libsql://") + "?secure=true"
+
+    engine = create_engine(
+        turso_url,
+        connect_args={"auth_token": config.turso_auth_token},
         echo=False,
-        poolclass=StaticPool,
-        future=True,
-        connect_args={"check_same_thread": False},
+        pool_pre_ping=True,
     )
-    AsyncSessionLocal = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-        autoflush=False,
-    )
-    
+    SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
+
     # Initialize Gmail service
     gmail_service = GmailService(
         credentials_path=config.gmail_credentials_path,
         token_path=config.gmail_token_path,
     )
-    
+
     # Date range: Jan 22, 2026 to today
     start_date = datetime(2026, 1, 22)
     sender_email = config.kraftculture_sender_email or None
-    
+
     logger.info(f"Starting backfill from {start_date.date()} to today")
     logger.info(f"Sender filter: {sender_email or 'None (all senders)'}")
-    
+
     # Fetch emails - get up to 500 to ensure we get all of them
     logger.info("Fetching emails from Gmail...")
     emails = gmail_service.fetch_emails(
@@ -114,23 +111,23 @@ async def backfill_deodap_orders():
         after_date=start_date,
         max_results=500,
     )
-    
+
     logger.info(f"Found {len(emails)} emails to process")
-    
+
     if not emails:
         logger.info("No emails found. Exiting.")
         return
-    
+
     # Process and store emails
-    async with AsyncSessionLocal() as db:
+    with SessionLocal() as db:
         processed_count = 0
         skipped_count = 0
         error_count = 0
-        
+
         for email in emails:
             try:
                 # Check if already processed
-                result = await db.execute(
+                result = db.execute(
                     select(DeodapOrderEmailStandalone.id).where(
                         DeodapOrderEmailStandalone.gmail_message_id == email.id
                     )
@@ -139,14 +136,14 @@ async def backfill_deodap_orders():
                     logger.debug(f"Skipping already processed: {email.id}")
                     skipped_count += 1
                     continue
-                
+
                 # Parse email content
                 html_content = email.html_body or email.body or ""
                 parsed_data = parse_webkul_order_email(html_content)
-                
+
                 # Get items from parsed data
                 items = parsed_data.get("items", [])
-                
+
                 # Create order email record
                 order_email = DeodapOrderEmailStandalone(
                     gmail_message_id=email.id,
@@ -167,10 +164,10 @@ async def backfill_deodap_orders():
                     country=parsed_data.get("country"),
                     whatsapp_sent=False,  # Don't send WhatsApp for backfill
                 )
-                
+
                 db.add(order_email)
-                await db.flush()  # Get the ID
-                
+                db.flush()  # Get the ID
+
                 # Create order items
                 for item in items:
                     order_item = DeodapOrderItemStandalone(
@@ -181,7 +178,7 @@ async def backfill_deodap_orders():
                         quantity=item.get("quantity"),
                     )
                     db.add(order_item)
-                
+
                 processed_count += 1
                 logger.info(
                     f"Processed: Order #{parsed_data.get('order_id', 'N/A')} - "
@@ -189,15 +186,15 @@ async def backfill_deodap_orders():
                     f"{len(items)} items - "
                     f"Date: {email.date}"
                 )
-                
+
             except Exception as e:
                 logger.error(f"Error processing email {email.id}: {e}")
                 error_count += 1
                 continue
-        
+
         # Commit all changes
-        await db.commit()
-        
+        db.commit()
+
         logger.info("=" * 50)
         logger.info("BACKFILL COMPLETE")
         logger.info(f"  Processed: {processed_count}")
@@ -207,4 +204,4 @@ async def backfill_deodap_orders():
 
 
 if __name__ == "__main__":
-    asyncio.run(backfill_deodap_orders())
+    backfill_deodap_orders()

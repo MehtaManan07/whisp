@@ -1,7 +1,6 @@
 import logging
 import random
 from typing import Optional
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ValidationError, DatabaseError
 from app.intelligence.extraction.router import route_intent
@@ -40,28 +39,24 @@ class MessageOrchestrator:
     # =============================================================================
 
     async def handle_new_message(
-        self, payload: HandleMessagePayload, db: AsyncSession
+        self, payload: HandleMessagePayload
     ) -> Optional[ProcessMessageResult]:
         """Main entry point for handling new incoming messages."""
         try:
-            # Ensure user exists in DB
-            user = await self._ensure_user(payload, db)
+            user = await self._ensure_user(payload)
 
-            # Extract and validate text
             text = self._extract_text(payload)
             if not text:
                 return None
 
-            # Route based on message type
             if text.startswith("/"):
-                return await self.handle_command(payload, db)
+                return await self.handle_command(payload)
             elif payload.message.context:
-                return await self.handle_reply(payload, db)
+                return await self.handle_reply(payload)
             else:
-                return await self.handle_free_text(payload, db, user)
+                return await self.handle_free_text(payload, user)
         except Exception as e:
             self.logger.error(f"Error handling message: {str(e)}", exc_info=True)
-            # Get user-friendly error message from the actual error
             user_message = message_constants.get_user_friendly_error_message(e)
             return ProcessMessageResult(status="error", messages=[user_message])
 
@@ -69,7 +64,7 @@ class MessageOrchestrator:
     # =============================================================================
 
     async def handle_command(
-        self, payload: HandleMessagePayload, db: AsyncSession
+        self, payload: HandleMessagePayload
     ) -> Optional[ProcessMessageResult]:
         """Handle command messages (starting with /)."""
         text = self._extract_text(payload)
@@ -78,9 +73,8 @@ class MessageOrchestrator:
 
         match text:
             case "/help":
-                return await self.handle_help_command(payload, db)
+                return await self.handle_help_command(payload)
             case _:
-                # Unknown command
                 return ProcessMessageResult(
                     messages=[
                         'Unknown command. Try "/help" to see available commands.'
@@ -89,7 +83,7 @@ class MessageOrchestrator:
                 )
 
     async def handle_free_text(
-        self, payload: HandleMessagePayload, db: AsyncSession, user: User
+        self, payload: HandleMessagePayload, user: User
     ) -> Optional[ProcessMessageResult]:
         """Handle free text messages using intent classification."""
         text = self._extract_text(payload)
@@ -116,17 +110,15 @@ class MessageOrchestrator:
         response = await route_intent(
             classified_result=classified_result,
             user_id=user.id,
-            db=db,
         )
 
-        # Default fallback for free text
         return ProcessMessageResult(
             messages=[response],
             status="success",
         )
 
     async def handle_reply(
-        self, payload: HandleMessagePayload, db: AsyncSession
+        self, payload: HandleMessagePayload
     ) -> Optional[ProcessMessageResult]:
         """Handle reply messages."""
         text = self._extract_text(payload)
@@ -144,14 +136,12 @@ class MessageOrchestrator:
             status="success",
         )
 
-        # TODO: add reply-specific logic here
-
     # =============================================================================
     # COMMAND HANDLERS
     # =============================================================================
 
     async def handle_help_command(
-        self, payload: HandleMessagePayload, db: AsyncSession
+        self, payload: HandleMessagePayload
     ) -> ProcessMessageResult:
         """Handle help command."""
         message = message_constants.HELP_MESSAGES.help(
@@ -163,14 +153,13 @@ class MessageOrchestrator:
     # HELPER METHODS
     # =============================================================================
 
-    async def _ensure_user(self, payload: HandleMessagePayload, db: AsyncSession):
+    async def _ensure_user(self, payload: HandleMessagePayload):
         """Ensure user exists in database."""
         try:
             if not payload.contact or not payload.contact.wa_id:
                 raise ValidationError("Invalid contact information in message payload")
 
             user_data = await self.users_service.find_or_create(
-                db=db,
                 user_data=CreateUserDto(
                     wa_id=payload.contact.wa_id,
                     phone_number=payload.from_,

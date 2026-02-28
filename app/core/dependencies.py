@@ -4,16 +4,13 @@ Singletons for stateless services, per-request for DB sessions
 """
 
 from functools import lru_cache
-from typing import AsyncGenerator, Annotated
-from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import Depends
-from contextlib import asynccontextmanager
+from typing import Annotated
 
+from fastapi import Depends
 
 from app.core.config import config
 from app.core.cache.sqlalchemy_cache_client import SQLAlchemyCacheClient
 from app.core.cache.service import CacheService
-from app.core.db.engine import get_db_util, AsyncSessionLocal
 from app.integrations.llm.key_manager import APIKeyManager
 from app.integrations.llm.service import LLMService
 from app.integrations.whatsapp.service import WhatsAppService
@@ -29,41 +26,14 @@ from app.core.orchestrator import MessageOrchestrator
 
 
 # ============================================================================
-# PER-REQUEST DEPENDENCIES (New instance per request)
-# ============================================================================
-
-
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """
-    Database session - NEW per request
-    Automatically commits/rollbacks and closes
-    """
-    async for session in get_db_util():
-        yield session
-
-
-# ============================================================================
 # SINGLETON DEPENDENCIES (One instance for entire app lifetime)
 # ============================================================================
-
-
-@asynccontextmanager
-async def get_cache_db_session():
-    """Create a new database session for cache operations."""
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
 
 
 @lru_cache()
 def get_cache_client():
     """SQLAlchemy cache client - SINGLETON"""
-    return SQLAlchemyCacheClient(db_session_factory=get_cache_db_session)
+    return SQLAlchemyCacheClient()
 
 
 @lru_cache()
@@ -100,16 +70,13 @@ def get_whatsapp_service():
 
 
 # ============================================================================
-# SERVICE LAYER (Singletons that accept DB session)
+# SERVICE LAYER (Singletons that self-manage DB sessions)
 # ============================================================================
 
 
 @lru_cache()
 def get_expense_service():
-    """
-    Expense service - SINGLETON
-    Takes DB session as method parameter, not in constructor
-    """
+    """Expense service - SINGLETON"""
     return ExpensesService()
 
 
@@ -146,14 +113,13 @@ def get_kraftculture_service():
     gmail_service = get_gmail_service()
     whatsapp_service = get_whatsapp_service()
     cache_service = get_cache_service()
-    
-    # Parse WhatsApp numbers from comma-separated config
+
     whatsapp_numbers = [
-        n.strip() 
-        for n in config.kraftculture_whatsapp_numbers.split(",") 
+        n.strip()
+        for n in config.kraftculture_whatsapp_numbers.split(",")
         if n.strip()
     ]
-    
+
     return KraftcultureService(
         gmail_service=gmail_service,
         whatsapp_service=whatsapp_service,
@@ -207,9 +173,6 @@ def get_orchestrator():
 # ============================================================================
 # FASTAPI DEPENDENCY TYPE ALIASES
 # ============================================================================
-
-# Database dependencies
-DatabaseDep = Annotated[AsyncSession, Depends(get_db)]
 
 # Service dependencies
 IntentClassifierDep = Annotated[IntentClassifier, Depends(get_intent_classifier)]

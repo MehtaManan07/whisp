@@ -4,11 +4,9 @@ import os
 
 
 class Config(BaseSettings):
-    # Database Configuration - SQLite
-    db_url: str = Field(
-        default="sqlite+aiosqlite:///whisp.db", 
-        alias="DB_URL"
-    )
+    # Database Configuration - Turso (libSQL)
+    turso_database_url: str = Field(alias="TURSO_DATABASE_URL")
+    turso_auth_token: str = Field(alias="TURSO_AUTH_TOKEN")
 
     # WhatsApp Configuration
     wa_verify_token: str = Field(default="", alias="WA_VERIFY_TOKEN")

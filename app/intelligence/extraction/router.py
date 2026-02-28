@@ -4,8 +4,6 @@ import inspect
 from pathlib import Path
 from typing import Dict, Tuple, Type, Any, Optional
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.intelligence.intent.decorators import INTENT_REGISTRY
 from app.intelligence.intent.types import (
     CLASSIFIED_RESULT,
@@ -46,7 +44,6 @@ discover_handlers()
 async def route_intent(
     classified_result: CLASSIFIED_RESULT,
     user_id: int,
-    db: AsyncSession,
 ) -> str:
     """Route intent to appropriate handler with type safety."""
     _, intent = classified_result
@@ -66,7 +63,7 @@ async def route_intent(
 
             method = getattr(handler_instance, method_name)
             return await method(
-                classified_result=classified_result, user_id=user_id, db=db
+                classified_result=classified_result, user_id=user_id
             )
 
     raise ValueError(f"No handler found for intent, uh oh {intent}")
