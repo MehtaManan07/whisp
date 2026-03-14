@@ -38,23 +38,12 @@ class Config(BaseSettings):
         default="token.json", alias="GMAIL_TOKEN_PATH"
     )
     
-    # Kraftculture Configuration
-    kraftculture_whatsapp_numbers: str = Field(
-        default="919328483009", alias="KRAFTCULTURE_WHATSAPP_NUMBERS"
-    )
-    kraftculture_sender_email: str = Field(
-        default="", alias="KRAFTCULTURE_SENDER_EMAIL"
-    )
-    
     # Scheduler Configuration (APScheduler)
     scheduler_enabled: bool = Field(
         default=True, alias="SCHEDULER_ENABLED"
     )
     scheduler_reminders_interval_minutes: int = Field(
         default=1, alias="SCHEDULER_REMINDERS_INTERVAL_MINUTES"
-    )
-    scheduler_kraftculture_interval_hours: int = Field(
-        default=1, alias="SCHEDULER_KRAFTCULTURE_INTERVAL_HOURS"
     )
     scheduler_bank_transactions_interval_minutes: int = Field(
         default=5, alias="SCHEDULER_BANK_TRANSACTIONS_INTERVAL_MINUTES"

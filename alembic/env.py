@@ -12,7 +12,7 @@ from app.modules.expenses.models import Expense
 from app.modules.categories.models import Category
 from app.modules.reminders.models import Reminder
 from app.core.cache.models import Cache
-from app.modules.kraftculture.models import DeodapOrderEmail
+from app.modules.bank_transactions.models import ProcessedBankTransaction
 
 # Load environment variables from .env file
 load_dotenv()
@@ -47,7 +47,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
-        compare_server_default=True,
+        compare_server_default=False,
         render_as_batch=True,
     )
 
@@ -60,7 +60,7 @@ def do_run_migrations(connection: Connection) -> None:
         connection=connection,
         target_metadata=target_metadata,
         compare_type=True,
-        compare_server_default=True,
+        compare_server_default=False,
         render_as_batch=True,
     )
 

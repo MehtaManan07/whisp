@@ -37,8 +37,6 @@ TABLE_ORDER = [
     "categories",
     "expenses",
     "reminders",
-    "deodap_order_emails",
-    "deodap_order_items",
 ]
 
 

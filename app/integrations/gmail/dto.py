@@ -48,7 +48,7 @@ class FetchEmailsRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "from_email": "orders@kraftculture.com",
+                "from_email": "orders@example.com",
                 "max_results": 5,
                 "unread_only": True,
             }

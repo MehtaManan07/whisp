@@ -1,7 +1,7 @@
 """bank_transaction_processing
 
 Revision ID: bank_transactions_2026
-Revises: deodap_order_items_2026
+Revises: cache_table_2026
 Create Date: 2026-03-01 00:00:00.000000
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'bank_transactions_2026'
-down_revision: Union[str, Sequence[str], None] = 'deodap_order_items_2026'
+down_revision: Union[str, Sequence[str], None] = 'cache_table_2026'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

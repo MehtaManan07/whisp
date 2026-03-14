@@ -85,15 +85,66 @@ async def demo_intent(
         raise ValidationError("Text input is required")
 
     from app.intelligence.extraction.extractor import extract_dto
+    from app.intelligence.intent.types import INTENT_TO_DTO
 
     user_id = 2  # Demo user
     intent = await intent_classifier.classify(text)
-    dto = await extract_dto(
-        message=text,
-        intent=intent,
-        user_id=user_id,
-        llm_service=llm_service,
-        category_classifier=category_classifier,
-    )
+
+    if intent not in INTENT_TO_DTO:
+        return (None, intent)
+
+    try:
+        dto = await extract_dto(
+            message=text,
+            intent=intent,
+            user_id=user_id,
+            llm_service=llm_service,
+            category_classifier=category_classifier,
+        )
+    except Exception as e:
+        return ({"error": str(e)}, intent)
 
     return (dto, intent)
+
+
+@router.post("/demo/search")
+async def demo_search(
+    text: str,
+    intent_classifier: IntentClassifierDep,
+    llm_service: LLMServiceDep,
+    category_classifier: CategoryClassifierDep,
+):
+    """Full pipeline demo: NL text -> intent -> extraction -> SQL query -> formatted response"""
+    if not text or not text.strip():
+        raise ValidationError("Text input is required")
+
+    from app.intelligence.extraction.extractor import extract_dto
+    from app.intelligence.extraction.router import route_intent
+    from app.intelligence.intent.types import INTENT_TO_DTO
+
+    user_id = 2  # Demo user
+    intent = await intent_classifier.classify(text)
+
+    if intent not in INTENT_TO_DTO:
+        return {"intent": intent, "response": None, "error": "Unhandled intent"}
+
+    try:
+        dto = await extract_dto(
+            message=text,
+            intent=intent,
+            user_id=user_id,
+            llm_service=llm_service,
+            category_classifier=category_classifier,
+        )
+    except Exception as e:
+        return {"intent": intent, "response": None, "error": str(e)}
+
+    try:
+        response = await route_intent(
+            classified_result=(dto, intent),
+            user_id=user_id,
+        )
+    except Exception as e:
+        return {"intent": intent, "dto": dto, "response": None, "error": str(e)}
+
+    return {"intent": intent, "dto": dto, "response": response}
