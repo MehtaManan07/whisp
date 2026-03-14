@@ -80,7 +80,7 @@ class IntentClassifier:
             prompt = build_intent_prompt(message)
 
             # Make LLM request
-            response = await self.llm.complete(
+            response = await self.llm.complete_with_groq(
                 prompt=prompt,
                 temperature=0.1,
                 call_stack="intent_classification",

@@ -27,7 +27,7 @@ async def extract_dto(
         Structured DTO instance based on the intent
     """
     prompt = build_dto_prompt(message, intent, user_id)
-    extraction_response = await llm_service.complete(
+    extraction_response = await llm_service.complete_with_groq(
         prompt=prompt,
         temperature=0,
         call_stack="extraction",

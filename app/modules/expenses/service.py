@@ -91,8 +91,7 @@ class ExpensesService:
             elif data.category_name:
                 query = query.where(
                     Expense.category.has(
-                        (Category.name == data.category_name)
-                        & (Category.parent_id.is_(None))
+                        Category.parent.has(Category.name == data.category_name)
                     )
                 )
             elif data.subcategory_name:

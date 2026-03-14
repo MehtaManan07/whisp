@@ -206,7 +206,7 @@ class CategoryClassifier:
         )
 
         try:
-            response = await self.llm.complete(
+            response = await self.llm.complete_with_groq(
                 prompt=prompt,
                 temperature=0,  # Deterministic for consistency
                 call_stack="categorization",
@@ -427,7 +427,7 @@ class CategoryClassifier:
         """Use constrained LLM fallback for query filter extraction."""
         prompt = build_query_filter_fallback_prompt(message)
         try:
-            response = await self.llm.complete(
+            response = await self.llm.complete_with_groq(
                 prompt=prompt,
                 temperature=0,
                 call_stack="query_categorization",
