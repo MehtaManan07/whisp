@@ -86,37 +86,6 @@ Return ONLY the JSON object, no other text."""
     return prompt
 
 
-def build_correction_learning_prompt(
-    original_message: str,
-    wrong_category: str,
-    wrong_subcategory: str,
-    correct_category: str,
-    correct_subcategory: str,
-) -> str:
-    """
-    Build a prompt to help the LLM learn from user corrections.
-    This can be used for generating better classification rules.
-    
-    Args:
-        original_message: The original expense message
-        wrong_category: The incorrectly assigned category
-        wrong_subcategory: The incorrectly assigned subcategory
-        correct_category: The user-corrected category
-        correct_subcategory: The user-corrected subcategory
-        
-    Returns:
-        Prompt for learning from the correction
-    """
-    return f"""A user corrected an expense classification. Learn from this mistake.
-
-Original message: "{original_message}"
-Wrong classification: {wrong_category} > {wrong_subcategory}
-Correct classification: {correct_category} > {correct_subcategory}
-
-Why was the original classification wrong? What pattern should we remember?
-Return JSON: {{"pattern": "description of what to look for", "correct_category": "{correct_category}", "correct_subcategory": "{correct_subcategory}", "avoid_confusion_with": "{wrong_category} > {wrong_subcategory}"}}"""
-
-
 def build_query_filter_fallback_prompt(message: str) -> str:
     """
     Build a constrained fallback prompt for expense-search category filters.

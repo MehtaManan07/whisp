@@ -51,7 +51,6 @@ class LLMService:
 
     def __init__(
         self,
-        api_key_manager: Optional[Any] = None,
         api_key: Optional[str] = None,
         model_name: Optional[str] = None,
         timeout: float = 30.0,
@@ -281,59 +280,6 @@ class LLMService:
         except Exception as e:
             logger.error(f"Unexpected Gemini SDK response format: {e}")
             raise LLMServiceError(f"Unexpected Gemini SDK response format: {str(e)}")
-
-    def _parse_gemini_response(self, data: Dict[str, Any]) -> LLMResponse:
-        """Parse the Gemini API response into an LLMResponse object."""
-        try:
-            if "candidates" not in data or not data["candidates"]:
-                raise LLMServiceError("No candidates in Gemini API response")
-
-            candidate = data["candidates"][0]
-            content_parts = candidate.get("content", {}).get("parts", [])
-            
-            if not content_parts:
-                raise LLMServiceError("No content parts in Gemini response")
-
-            content = content_parts[0].get("text", "").strip()
-
-            # Remove special tokens that some models emit
-            content = self._clean_special_tokens(content)
-
-            if not content:
-                logger.warning("Empty content in LLM response")
-                content = "I apologize, but I couldn't generate a proper response. Please try again."
-
-            # Extract JSON from markdown code blocks if present
-            processed_content = self._extract_json_from_markdown(content)
-
-            # Extract usage info if available
-            usage = None
-            if "usageMetadata" in data:
-                usage_meta = data["usageMetadata"]
-                usage = {
-                    "prompt_tokens": usage_meta.get("promptTokenCount", 0),
-                    "completion_tokens": usage_meta.get("candidatesTokenCount", 0),
-                    "total_tokens": usage_meta.get("totalTokenCount", 0),
-                }
-
-            finish_reason = candidate.get("finishReason", "STOP")
-            # Map Gemini finish reasons to standard ones
-            if finish_reason == "STOP":
-                finish_reason = "stop"
-            elif finish_reason == "MAX_TOKENS":
-                finish_reason = "length"
-
-            return LLMResponse(
-                content=processed_content,
-                usage=usage,
-                model=data.get("model", self.default_model),
-                finish_reason=finish_reason,
-                raw_response=data,
-            )
-
-        except (KeyError, IndexError) as e:
-            logger.error(f"Unexpected Gemini response format: {data}")
-            raise LLMServiceError(f"Unexpected Gemini response format: {str(e)}")
 
     def _parse_response(self, data: Dict[str, Any]) -> LLMResponse:
         """Parse the API response into an LLMResponse object (for Groq)."""

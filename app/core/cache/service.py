@@ -13,7 +13,7 @@ class CacheService:
         Initialize the cache service.
 
         Args:
-            cache_client: Cache client instance (SQLiteCacheClient or SQLAlchemyCacheClient)
+            cache_client: Cache client instance (SQLAlchemyCacheClient)
         """
         self._cache_client = cache_client
 

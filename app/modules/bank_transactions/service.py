@@ -262,15 +262,30 @@ class BankTransactionService:
             f"max_results: {max_results}"
         )
         
-        try:
-            # Fetch emails from both ICICI and HDFC
-            # We'll use a broad search and filter by sender in the parser
-            emails = self.gmail_service.fetch_emails(
-                after_date=pointer_date,
-                max_results=max_results,
+        if not self.whatsapp_number:
+            logger.warning(
+                "BANK_TRANSACTIONS_WHATSAPP_NUMBER is not configured; "
+                "transactions will be saved but no WhatsApp prompts will be sent"
             )
-            
-            logger.info(f"Fetched {len(emails)} emails to check for transactions")
+
+        try:
+            # Fetch emails filtered by bank senders to avoid missing
+            # transaction emails buried under unrelated messages.
+            bank_senders = [
+                "icicibank.com",
+                "hdfcbank.bank.in",
+            ]
+            emails = []
+            for sender in bank_senders:
+                fetched = self.gmail_service.fetch_emails(
+                    from_email=sender,
+                    after_date=pointer_date,
+                    max_results=max_results,
+                    unread_only=True,
+                )
+                emails.extend(fetched)
+
+            logger.info(f"Fetched {len(emails)} bank emails to check for transactions")
             
             for email in emails:
                 try:
@@ -345,9 +360,15 @@ class BankTransactionService:
                             logger.error(error_msg)
                             errors.append(error_msg)
                     
+                    # Mark email as read so it's not fetched again
+                    try:
+                        self.gmail_service.mark_as_read(email.id)
+                    except Exception as e:
+                        logger.warning(f"Failed to mark email {email.id} as read: {e}")
+
                     # Save to database
                     await run_db(
-                        lambda db, eid=email.id, pd=parsed_data, ws=whatsapp_sent: 
+                        lambda db, eid=email.id, pd=parsed_data, ws=whatsapp_sent:
                         self._save_processed_transaction_sync(db, eid, pd, ws)
                     )
                     
@@ -357,15 +378,23 @@ class BankTransactionService:
                     if email.date:
                         if latest_email_date is None or email.date > latest_email_date:
                             latest_email_date = email.date
-                
+
                 except Exception as e:
                     error_msg = f"Error processing email {email.id}: {str(e)}"
                     logger.error(error_msg)
                     errors.append(error_msg)
-            
-            # Update pointer date if we processed any emails
-            if latest_email_date:
-                await self._update_pointer_date(latest_email_date)
+
+            # Advance pointer so we don't re-fetch the same batch.
+            # Use the latest email date we saw (even if it wasn't a transaction),
+            # falling back to now if we fetched emails but none had dates.
+            if emails:
+                max_email_date = max(
+                    (e.date for e in emails if e.date),
+                    default=None,
+                )
+                advance_to = max_email_date or latest_email_date
+                if advance_to and advance_to > pointer_date:
+                    await self._update_pointer_date(advance_to)
         
         except Exception as e:
             error_msg = f"Error fetching bank transaction emails: {str(e)}"

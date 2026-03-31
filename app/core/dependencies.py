@@ -11,7 +11,6 @@ from fastapi import Depends
 from app.core.config import config
 from app.core.cache.sqlalchemy_cache_client import SQLAlchemyCacheClient
 from app.core.cache.service import CacheService
-from app.integrations.llm.key_manager import APIKeyManager
 from app.integrations.llm.service import LLMService
 from app.integrations.whatsapp.service import WhatsAppService
 from app.integrations.gmail.service import GmailService
@@ -41,19 +40,6 @@ def get_cache_service():
     """Cache service - SINGLETON"""
     cache_client = get_cache_client()
     return CacheService(cache_client)
-
-
-@lru_cache()
-def get_api_key_manager(keys: str = "", key_prefix: str = "llm_usage:"):
-    """API Key Manager - SINGLETON"""
-    from app.core.config import config
-
-    cache_service = get_cache_service()
-    return APIKeyManager(
-        cache_service,
-        keys=keys,
-        key_prefix=key_prefix,
-    )
 
 
 @lru_cache()

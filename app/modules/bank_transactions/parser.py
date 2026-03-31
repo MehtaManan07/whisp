@@ -68,50 +68,81 @@ def parse_icici_transaction(email: EmailDTO) -> Optional[ParsedTransactionData]:
 
 def parse_hdfc_transaction(email: EmailDTO) -> Optional[ParsedTransactionData]:
     """
-    Parse HDFC Bank UPI transaction alert email.
-    
-    Example pattern:
-    Rs.150.00 has been debited from account 1771 to VPA nitisha.mehta3028@oksbi 
-    NITISHA RAJEN MEHTA on 28-02-26.
-    Your UPI transaction reference number is 605965098644.
+    Parse HDFC Bank transaction alert emails (UPI and Credit Card).
+
+    Supported patterns:
+      UPI:  Rs.150.00 has been debited from account 1771 to VPA nitisha.mehta3028@oksbi
+            NITISHA RAJEN MEHTA on 28-02-26.
+            Your UPI transaction reference number is 605965098644.
+      CC:   Rs.350.00 is debited from your HDFC Bank Credit Card ending 0254
+            towards PYU*Swiggy Food on 15 Mar, 2026 at 15:59:47.
     """
     try:
         html_content = email.html_body or email.body or ""
         soup = BeautifulSoup(html_content, "html.parser")
         text = soup.get_text(" ", strip=True)
-        
-        # Match amount pattern: "Rs.<amount> has been debited"
-        amount_match = re.search(r'Rs\.\s*([\d,]+\.?\d*)\s+has been debited', text, re.IGNORECASE)
+
+        # Match amount: "Rs.<amount> has been debited" OR "Rs.<amount> is debited"
+        amount_match = re.search(
+            r'Rs\.\s*([\d,]+\.?\d*)\s+(?:has been|is) debited', text, re.IGNORECASE
+        )
         if not amount_match:
             logger.debug(f"HDFC: No debit amount found in email {email.id}")
             return None
-        
+
         amount_str = amount_match.group(1).replace(',', '')
         amount = float(amount_str)
-        
-        # Match merchant/payee name (after VPA)
-        # Pattern: "to VPA <vpa> <NAME> on <date>"
-        merchant_match = re.search(r'to VPA\s+[\w.@]+\s+([A-Z\s]+)\s+on', text)
-        merchant = merchant_match.group(1).strip() if merchant_match else None
-        
-        # Match date: "on DD-MM-YY"
-        date_match = re.search(r'on\s+(\d{2}-\d{2}-\d{2})', text)
+
+        # --- Merchant ---
+        merchant = None
+        # Credit Card pattern: "towards <merchant> on"
+        cc_merchant_match = re.search(r'towards\s+(.+?)\s+on\s+\d', text)
+        if cc_merchant_match:
+            merchant = cc_merchant_match.group(1).strip()
+        else:
+            # UPI pattern: "to VPA <vpa> <NAME> on"
+            upi_merchant_match = re.search(r'to VPA\s+[\w.@]+\s+([A-Z\s]+)\s+on', text)
+            if upi_merchant_match:
+                merchant = upi_merchant_match.group(1).strip()
+
+        # --- Date ---
         transaction_date = None
-        if date_match:
-            try:
-                date_str = date_match.group(1)
-                transaction_date = datetime.strptime(date_str, "%d-%m-%y")
-            except ValueError:
-                logger.warning(f"HDFC: Could not parse date: {date_match.group(0)}")
-        
-        # Match reference number: "reference number is <ref>"
+        # Credit Card pattern: "on 15 Mar, 2026 at 15:59:47"
+        cc_date_match = re.search(
+            r'on\s+(\d{1,2}\s+[A-Za-z]+,?\s+\d{4})\s+at\s+(\d{2}:\d{2}:\d{2})', text
+        )
+        if cc_date_match:
+            raw_date = cc_date_match.group(1).replace(',', '')
+            raw_time = cc_date_match.group(2)
+            for fmt in ("%d %b %Y %H:%M:%S", "%d %B %Y %H:%M:%S"):
+                try:
+                    transaction_date = datetime.strptime(f"{raw_date} {raw_time}", fmt)
+                    break
+                except ValueError:
+                    continue
+        if not transaction_date:
+            # UPI pattern: "on DD-MM-YY"
+            upi_date_match = re.search(r'on\s+(\d{2}-\d{2}-\d{2})', text)
+            if upi_date_match:
+                try:
+                    transaction_date = datetime.strptime(upi_date_match.group(1), "%d-%m-%y")
+                except ValueError:
+                    logger.warning(f"HDFC: Could not parse date: {upi_date_match.group(0)}")
+
+        # --- Reference number (UPI only) ---
         ref_match = re.search(r'reference number is\s+(\d+)', text)
         reference_number = ref_match.group(1) if ref_match else None
-        
-        # Match account last 4 digits: "from account <digits>"
-        card_match = re.search(r'from account\s+(\d{4})', text)
-        card_last4 = card_match.group(1) if card_match else None
-        
+
+        # --- Card / account last 4 digits ---
+        card_last4 = None
+        cc_card_match = re.search(r'(?:Credit Card|Card) ending\s+(\d{4})', text)
+        if cc_card_match:
+            card_last4 = cc_card_match.group(1)
+        else:
+            acct_match = re.search(r'from account\s+(\d{4})', text)
+            if acct_match:
+                card_last4 = acct_match.group(1)
+
         return ParsedTransactionData(
             amount=amount,
             merchant=merchant,
@@ -119,9 +150,9 @@ def parse_hdfc_transaction(email: EmailDTO) -> Optional[ParsedTransactionData]:
             reference_number=reference_number,
             card_last4=card_last4,
             bank="HDFC",
-            raw_info=text[:500]
+            raw_info=text[:500],
         )
-        
+
     except Exception as e:
         logger.error(f"Error parsing HDFC email {email.id}: {e}")
         return None
