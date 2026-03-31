@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import select, delete, update, func
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import IntegrityError
 
 from app.core.cache.models import Cache
@@ -48,26 +49,17 @@ class SQLAlchemyCacheClient:
                 if ttl:
                     expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl)
 
-                result = db.execute(
-                    select(Cache).where(Cache.key == key)
+                stmt = sqlite_insert(Cache).values(
+                    key=key,
+                    value=value,
+                    expires_at=expires_at,
+                    created_at=datetime.now(timezone.utc),
                 )
-                existing = result.scalar_one_or_none()
-
-                if existing:
-                    db.execute(
-                        update(Cache)
-                        .where(Cache.key == key)
-                        .values(value=value, expires_at=expires_at)
-                    )
-                else:
-                    cache_entry = Cache(
-                        key=key,
-                        value=value,
-                        expires_at=expires_at,
-                        created_at=datetime.now(timezone.utc)
-                    )
-                    db.add(cache_entry)
-
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=['key'],
+                    set_={'value': stmt.excluded.value, 'expires_at': stmt.excluded.expires_at},
+                )
+                db.execute(stmt)
                 db.commit()
 
                 import random

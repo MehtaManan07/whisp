@@ -73,6 +73,17 @@ class BankTransactionService:
             )
         )
         return result.scalar_one_or_none() is not None
+
+    def _get_already_processed_ids_sync(self, db: Session, gmail_message_ids: list[str]) -> set[str]:
+        """Batch check which email IDs are already processed."""
+        if not gmail_message_ids:
+            return set()
+        result = db.execute(
+            select(ProcessedBankTransaction.gmail_message_id).where(
+                ProcessedBankTransaction.gmail_message_id.in_(gmail_message_ids)
+            )
+        )
+        return set(result.scalars().all())
     
     def _save_processed_transaction_sync(
         self,
@@ -286,7 +297,13 @@ class BankTransactionService:
                 emails.extend(fetched)
 
             logger.info(f"Fetched {len(emails)} bank emails to check for transactions")
-            
+
+            # Batch dedup: check all email IDs in one query instead of per-email
+            email_ids = [e.id for e in emails]
+            already_processed_ids = await run_db(
+                lambda db: self._get_already_processed_ids_sync(db, email_ids)
+            )
+
             for email in emails:
                 try:
                     # Try to parse as bank transaction
@@ -302,12 +319,7 @@ class BankTransactionService:
                         logger.debug(f"Skipping non-positive amount for email {email.id}")
                         continue
                     
-                    # Check if already processed
-                    already_processed = await run_db(
-                        lambda db, eid=email.id: self._is_transaction_processed_sync(db, eid)
-                    )
-                    
-                    if already_processed:
+                    if email.id in already_processed_ids:
                         logger.debug(f"Skipping already processed transaction: {email.id}")
                         skipped_count += 1
                         continue

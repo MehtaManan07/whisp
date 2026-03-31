@@ -7,7 +7,6 @@ from app.intelligence.intent.types import (
 )
 from app.modules.expenses.dto import CreateExpenseModel, GetAllExpensesModel, CorrectExpenseModel
 from app.modules.expenses.service import ExpensesService
-from app.modules.users.service import UsersService
 from app.intelligence.categorization.constants import CATEGORIES, is_valid_category
 
 
@@ -15,11 +14,10 @@ class ExpenseHandlers(BaseHandlers):
     def __init__(self):
         super().__init__()
         self.service = ExpensesService()
-        self.users_service = UsersService()
 
     @intent_handler(IntentType.LOG_EXPENSE)
     async def log_expense(
-        self, classified_result: CLASSIFIED_RESULT, user_id: int
+        self, classified_result: CLASSIFIED_RESULT, user_id: int, user_timezone: str = "UTC"
     ) -> str:
         """Handle log expense intent with timezone awareness."""
         dto_instance, intent = classified_result
@@ -29,9 +27,6 @@ class ExpenseHandlers(BaseHandlers):
             return "Invalid data for creating expense."
         if not dto_instance.user_id:
             dto_instance.user_id = user_id
-
-        user = await self.users_service.get_user_by_id(user_id)
-        user_timezone = self.users_service.get_user_timezone(user) if user else "UTC"
 
         await self.service.create_expense(data=dto_instance, user_timezone=user_timezone)
 
@@ -58,7 +53,7 @@ class ExpenseHandlers(BaseHandlers):
 
     @intent_handler(IntentType.VIEW_EXPENSES)
     async def view_expenses(
-        self, classified_result: CLASSIFIED_RESULT, user_id: int
+        self, classified_result: CLASSIFIED_RESULT, user_id: int, user_timezone: str = "UTC"
     ) -> str:
         """Handle view expenses intent with timezone awareness."""
         dto_instance, intent = classified_result
@@ -68,9 +63,6 @@ class ExpenseHandlers(BaseHandlers):
             return "Invalid data for viewing expenses."
         if not dto_instance.user_id:
             dto_instance.user_id = user_id
-
-        user = await self.users_service.get_user_by_id(user_id)
-        user_timezone = self.users_service.get_user_timezone(user) if user else "UTC"
 
         expenses = await self.service.get_expenses(data=dto_instance, user_timezone=user_timezone)
 
@@ -101,7 +93,7 @@ class ExpenseHandlers(BaseHandlers):
 
     @intent_handler(IntentType.CORRECT_EXPENSE)
     async def correct_expense(
-        self, classified_result: CLASSIFIED_RESULT, user_id: int
+        self, classified_result: CLASSIFIED_RESULT, user_id: int, user_timezone: str = "UTC"
     ) -> str:
         """Handle expense category correction."""
         dto_instance, intent = classified_result

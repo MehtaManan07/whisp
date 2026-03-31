@@ -65,7 +65,8 @@ class ExpensesService:
                 field_map.get(data.aggregation_type) if data.aggregation_type else None
             )
             query = select(Expense if agg_func is None else agg_func).where(
-                Expense.user_id == data.user_id
+                Expense.user_id == data.user_id,
+                Expense.deleted_at.is_(None),
             )
 
             if data.vendor:
@@ -104,6 +105,7 @@ class ExpensesService:
 
             if agg_func is None:
                 query = query.options(selectinload(Expense.category))
+                query = query.order_by(Expense.timestamp.desc()).limit(50)
 
             result = db.execute(query)
 

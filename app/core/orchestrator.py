@@ -123,9 +123,11 @@ class MessageOrchestrator:
         )
         classified_result = (extracted_dto, intent)
 
+        user_timezone = user.timezone or "UTC"
         response = await route_intent(
             classified_result=classified_result,
             user_id=user.id,
+            user_timezone=user_timezone,
         )
 
         return ProcessMessageResult(
@@ -256,9 +258,11 @@ class MessageOrchestrator:
         if not extracted_dto.timestamp and pending_confirmation.transaction_data.transaction_date:
             extracted_dto.timestamp = pending_confirmation.transaction_data.transaction_date
 
+        user_timezone = user.timezone or "UTC"
         response = await route_intent(
             classified_result=(extracted_dto, IntentType.LOG_EXPENSE),
             user_id=user.id,
+            user_timezone=user_timezone,
         )
         self.logger.info(
             "Expense routed successfully from pending transaction: user=%s gmail_message_id=%s amount=%.2f",

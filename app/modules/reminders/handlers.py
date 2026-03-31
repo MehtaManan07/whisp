@@ -2,7 +2,6 @@ from app.intelligence.intent.base_handler import BaseHandlers
 from app.intelligence.intent.decorators import intent_handler
 from app.intelligence.intent.types import CLASSIFIED_RESULT, IntentType
 from app.modules.reminders.dto import CreateReminderDTO, ListRemindersDTO
-from app.modules.users.service import UsersService
 
 
 class ReminderHandlers(BaseHandlers):
@@ -11,13 +10,13 @@ class ReminderHandlers(BaseHandlers):
         # Import here to avoid circular import
         from app.core.dependencies import get_reminder_service
         self.service = get_reminder_service()
-        self.users_service = UsersService()
 
     @intent_handler(IntentType.SET_REMINDER)
     async def set_reminder(
         self,
         classified_result: CLASSIFIED_RESULT,
         user_id: int,
+        user_timezone: str = "UTC",
     ) -> str:
         """Handle set reminder intent with timezone awareness and scheduling."""
         dto_instance, intent = classified_result
@@ -25,9 +24,6 @@ class ReminderHandlers(BaseHandlers):
             return "I couldn't understand the reminder details. Please provide the reminder details."
         if not isinstance(dto_instance, CreateReminderDTO):
             return "Invalid data for creating reminder."
-
-        user = await self.users_service.get_user_by_id(user_id)
-        user_timezone = self.users_service.get_user_timezone(user) if user else "UTC"
 
         await self.service.create_reminder(
             user_id=user_id,
@@ -39,7 +35,7 @@ class ReminderHandlers(BaseHandlers):
 
     @intent_handler(IntentType.VIEW_REMINDERS)
     async def view_reminders(
-        self, classified_result: CLASSIFIED_RESULT, user_id: int
+        self, classified_result: CLASSIFIED_RESULT, user_id: int, user_timezone: str = "UTC"
     ) -> str:
         """Handle view reminders intent with timezone awareness."""
         dto_instance, intent = classified_result
@@ -47,9 +43,6 @@ class ReminderHandlers(BaseHandlers):
             return "I couldn't understand the reminder details. Please provide the reminder details."
         if not isinstance(dto_instance, ListRemindersDTO):
             return "Invalid data for viewing reminders."
-
-        user = await self.users_service.get_user_by_id(user_id)
-        user_timezone = self.users_service.get_user_timezone(user) if user else "UTC"
 
         list_dto = ListRemindersDTO(
             user_id=dto_instance.user_id, reminder_type=None, is_active=True

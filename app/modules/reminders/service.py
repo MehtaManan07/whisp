@@ -9,6 +9,7 @@ from app.modules.reminders.models import Reminder
 if TYPE_CHECKING:
     from app.integrations.whatsapp.service import WhatsAppService
     from app.modules.users.service import UsersService
+    from app.modules.users.models import User
 from app.modules.reminders.types import RecurrenceType, RecurrenceConfig
 from app.modules.reminders.dto import (
     CreateReminderDTO,
@@ -305,6 +306,28 @@ class ReminderService:
 
         return await run_db(_get)
 
+    async def get_due_reminders_with_users(
+        self, limit: int = 100
+    ) -> List[tuple[Reminder, Any]]:
+        """Get due reminders with their associated users in a single JOIN query."""
+        def _get(db: Session) -> List[tuple]:
+            from app.modules.users.models import User
+            result = db.execute(
+                select(Reminder, User)
+                .join(User, Reminder.user_id == User.id)
+                .where(
+                    and_(
+                        Reminder.is_active == True,
+                        Reminder.next_trigger_at <= utc_now(),
+                        Reminder.deleted_at.is_(None),
+                    )
+                )
+                .limit(limit)
+            )
+            return [(row[0], row[1]) for row in result.all()]
+
+        return await run_db(_get)
+
     async def fix_overdue_reminders(
         self,
         user_id: Optional[int] = None,
@@ -365,27 +388,30 @@ class ReminderService:
     async def process_single_reminder(
         self,
         reminder_id: int,
-        user_service: "UsersService",
-        whatsapp_service: "WhatsAppService",
+        user_service: "UsersService" = None,
+        whatsapp_service: "WhatsAppService" = None,
+        reminder: Reminder = None,
+        user: "User" = None,
     ) -> dict[str, Any]:
         """
         Process a specific reminder by ID (called by scheduled cron jobs).
+        Accepts optional pre-fetched reminder and user to avoid redundant queries.
         """
         try:
-            # Fetch reminder and user info in one DB call
-            def _fetch(db: Session):
-                result = db.execute(
-                    select(Reminder).where(
-                        and_(
-                            Reminder.id == reminder_id,
-                            Reminder.is_active == True,
-                            Reminder.deleted_at.is_(None),
+            if reminder is None:
+                def _fetch(db: Session):
+                    result = db.execute(
+                        select(Reminder).where(
+                            and_(
+                                Reminder.id == reminder_id,
+                                Reminder.is_active == True,
+                                Reminder.deleted_at.is_(None),
+                            )
                         )
                     )
-                )
-                return result.scalar_one_or_none()
+                    return result.scalar_one_or_none()
 
-            reminder = await run_db(_fetch)
+                reminder = await run_db(_fetch)
 
             if not reminder:
                 logger.warning(f"Reminder {reminder_id} not found or not active")
@@ -395,7 +421,8 @@ class ReminderService:
                     "processed": 0,
                 }
 
-            user = await user_service.get_user_by_id(reminder.user_id)
+            if user is None and user_service is not None:
+                user = await user_service.get_user_by_id(reminder.user_id)
             if not user or not user.phone_number:
                 logger.error(f"User {reminder.user_id} not found or has no phone number")
                 return {
@@ -404,7 +431,7 @@ class ReminderService:
                     "processed": 0,
                 }
 
-            user_timezone = user_service.get_user_timezone(user) if user else "UTC"
+            user_timezone = user.timezone or "UTC"
 
             # Send WhatsApp notification
             try:

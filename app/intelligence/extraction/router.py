@@ -44,6 +44,7 @@ discover_handlers()
 async def route_intent(
     classified_result: CLASSIFIED_RESULT,
     user_id: int,
+    user_timezone: str = "UTC",
 ) -> str:
     """Route intent to appropriate handler with type safety."""
     _, intent = classified_result
@@ -63,7 +64,7 @@ async def route_intent(
 
             method = getattr(handler_instance, method_name)
             return await method(
-                classified_result=classified_result, user_id=user_id
+                classified_result=classified_result, user_id=user_id, user_timezone=user_timezone
             )
 
     raise ValueError(f"No handler found for intent, uh oh {intent}")

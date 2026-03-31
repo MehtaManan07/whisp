@@ -19,12 +19,10 @@ async def process_due_reminders() -> dict:
         Summary of processed reminders
     """
     from app.core.dependencies import (
-        get_user_service,
         get_whatsapp_service,
         get_reminder_service,
     )
 
-    user_service = get_user_service()
     whatsapp_service = get_whatsapp_service()
     reminder_service = get_reminder_service()
 
@@ -34,20 +32,21 @@ async def process_due_reminders() -> dict:
     logger.info("Starting due reminders processing job")
 
     try:
-        due_reminders = await reminder_service.get_due_reminders()
+        due_items = await reminder_service.get_due_reminders_with_users()
 
-        if not due_reminders:
+        if not due_items:
             logger.debug("No due reminders found")
             return {"processed": 0, "errors": 0}
 
-        logger.info(f"Found {len(due_reminders)} due reminders")
+        logger.info(f"Found {len(due_items)} due reminders")
 
-        for reminder in due_reminders:
+        for reminder, user in due_items:
             try:
                 result = await reminder_service.process_single_reminder(
                     reminder_id=reminder.id,
-                    user_service=user_service,
                     whatsapp_service=whatsapp_service,
+                    reminder=reminder,
+                    user=user,
                 )
 
                 if result.get("status") == "success":

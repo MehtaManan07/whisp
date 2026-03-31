@@ -143,6 +143,7 @@ async def demo_search(
         response = await route_intent(
             classified_result=(dto, intent),
             user_id=user_id,
+            user_timezone="UTC",
         )
     except Exception as e:
         return {"intent": intent, "dto": dto, "response": None, "error": str(e)}
