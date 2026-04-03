@@ -29,7 +29,7 @@ async def process_due_reminders() -> dict:
     processed_count = 0
     error_count = 0
 
-    logger.info("Starting due reminders processing job")
+    logger.debug("Starting due reminders processing job")
 
     try:
         due_items = await reminder_service.get_due_reminders_with_users()
@@ -86,7 +86,7 @@ async def process_bank_transaction_emails() -> dict:
 
     bank_transaction_service = get_bank_transaction_service()
 
-    logger.info("Starting bank transaction email processing job")
+    logger.debug("Starting bank transaction email processing job")
 
     try:
         result = await bank_transaction_service.process_emails()

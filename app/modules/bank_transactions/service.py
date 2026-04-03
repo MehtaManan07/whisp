@@ -64,7 +64,7 @@ class BankTransactionService:
             new_date.isoformat(),
             ttl=None,
         )
-        logger.info(f"Updated bank transaction pointer date to: {new_date.isoformat()}")
+        logger.debug(f"Updated bank transaction pointer date to: {new_date.isoformat()}")
     
     def _is_transaction_processed_sync(self, db: Session, gmail_message_id: str) -> bool:
         """Check if transaction email was already processed."""
@@ -109,7 +109,7 @@ class BankTransactionService:
         db.add(transaction)
         db.flush()
         
-        logger.info(
+        logger.debug(
             f"Saved processed transaction {gmail_message_id} "
             f"({parsed_data.bank}, ₹{parsed_data.amount})"
         )
@@ -136,9 +136,6 @@ class BankTransactionService:
         pending_items.append(confirmation.model_dump(mode="json"))
 
         await self.cache_service.set_key(cache_key, pending_items, ttl=86400)
-        logger.info(
-            f"Stored pending transaction for {user_wa_id}, message {gmail_message_id}, prompt {prompt_message_id}"
-        )
     
     async def get_pending_confirmation(
         self,
@@ -153,18 +150,16 @@ class BankTransactionService:
         if replied_to_message_id:
             for item in pending_items:
                 if item.prompt_message_id == replied_to_message_id:
-                    logger.info(
-                        "Matched pending transaction via reply context: user=%s prompt=%s amount=%.2f",
+                    logger.debug(
+                        "Matched pending transaction via reply context: user=%s prompt=%s",
                         user_wa_id,
                         replied_to_message_id,
-                        item.transaction_data.amount,
                     )
                     return item
-            logger.info(
-                "No pending transaction match for reply context: user=%s prompt=%s pending_count=%d",
+            logger.debug(
+                "No pending transaction match for reply context: user=%s prompt=%s",
                 user_wa_id,
                 replied_to_message_id,
-                len(pending_items),
             )
             return None
 
@@ -218,14 +213,8 @@ class BankTransactionService:
 
         if remaining:
             await self.cache_service.set_key(cache_key, remaining, ttl=86400)
-            logger.info(
-                "Cleared one pending transaction for user=%s; remaining=%d",
-                user_wa_id,
-                len(remaining),
-            )
         else:
             await self.cache_service.delete_key(cache_key)
-            logger.info("Cleared last pending transaction for user=%s", user_wa_id)
 
     async def mark_transaction_action(
         self, gmail_message_id: str, action: str, expense_id: Optional[int] = None
@@ -269,7 +258,7 @@ class BankTransactionService:
         
         pointer_date = await self._get_pointer_date()
         
-        logger.info(
+        logger.debug(
             f"Processing bank transaction emails after: {pointer_date.isoformat()}, "
             f"max_results: {max_results}"
         )
@@ -298,7 +287,7 @@ class BankTransactionService:
                 )
                 emails.extend(fetched)
 
-            logger.info(f"Fetched {len(emails)} bank emails to check for transactions")
+            logger.debug(f"Fetched {len(emails)} bank emails to check")
 
             # Batch dedup: check all email IDs in one query instead of per-email
             email_ids = [e.id for e in emails]
@@ -333,8 +322,8 @@ class BankTransactionService:
                     
                     # Format WhatsApp message
                     message = self.format_transaction_prompt(parsed_data)
-                    logger.info(
-                        "Parsed transaction candidate: gmail_message_id=%s bank=%s amount=%.2f",
+                    logger.debug(
+                        "Parsed transaction: gmail_message_id=%s bank=%s amount=%.2f",
                         email.id,
                         parsed_data.bank,
                         parsed_data.amount,
@@ -356,11 +345,7 @@ class BankTransactionService:
 
                             sent_count += 1
                             whatsapp_sent = True
-                            logger.info(
-                                f"Sent transaction prompt for {parsed_data.bank} "
-                                f"₹{parsed_data.amount} to {self.whatsapp_number}"
-                            )
-                            
+
                             # Store pending confirmation state
                             await self.store_pending_confirmation(
                                 gmail_message_id=email.id,
@@ -368,12 +353,6 @@ class BankTransactionService:
                                 transaction_data=parsed_data,
                                 prompt_message_id=prompt_message_id,
                             )
-                            logger.info(
-                                "Pending prompt stored: gmail_message_id=%s prompt_message_id=%s",
-                                email.id,
-                                prompt_message_id,
-                            )
-                            
                         except Exception as e:
                             error_msg = f"Failed to send WhatsApp for {email.id}: {str(e)}"
                             logger.error(error_msg)

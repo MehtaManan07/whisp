@@ -95,8 +95,8 @@ class WhatsAppService:
             if len(display_text) > 50:
                 display_text = display_text[:50] + "..."
 
-            logger.info(
-                f"⚡ WhatsApp E2E Latency: {latency_ms:.2f}ms | "
+            logger.debug(
+                f"WhatsApp E2E Latency: {latency_ms:.2f}ms | "
                 f"User: {from_number} | Message: '{display_text}'"
             )
 

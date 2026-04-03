@@ -46,7 +46,7 @@ class GmailService:
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 # Auto-refresh using refresh token
-                logger.info("Refreshing expired Gmail credentials")
+                logger.debug("Refreshing expired Gmail credentials")
                 creds.refresh(Request())
             else:
                 if not os.path.exists(self.credentials_path):
@@ -54,7 +54,7 @@ class GmailService:
                         f"Gmail credentials file not found at {self.credentials_path}. "
                         "Please download from Google Cloud Console."
                     )
-                logger.info("Initiating Gmail OAuth flow")
+                logger.debug("Initiating Gmail OAuth flow")
                 flow = InstalledAppFlow.from_client_secrets_file(
                     self.credentials_path, self.SCOPES
                 )
@@ -63,7 +63,7 @@ class GmailService:
             # Always save updated credentials (new access token, expiry) to token.json
             with open(self.token_path, "w") as token_file:
                 token_file.write(creds.to_json())
-                logger.info(f"Saved Gmail credentials to {self.token_path}")
+                logger.debug(f"Saved Gmail credentials to {self.token_path}")
 
         return creds
 
@@ -164,7 +164,7 @@ class GmailService:
         
         query = " ".join(query_parts) if query_parts else None
         
-        logger.info(f"Fetching emails with query: {query or 'all'}")
+        logger.debug(f"Fetching emails with query: {query or 'all'}")
 
         try:
             # List messages
@@ -176,7 +176,7 @@ class GmailService:
             )
             
             messages = results.get("messages", [])
-            logger.info(f"Found {len(messages)} emails")
+            logger.debug(f"Found {len(messages)} emails")
 
             emails = []
             for msg in messages:
@@ -248,7 +248,7 @@ class GmailService:
                 id=message_id,
                 body={"removeLabelIds": ["UNREAD"]},
             ).execute()
-            logger.info(f"Marked email {message_id} as read")
+            logger.debug(f"Marked email {message_id} as read")
             return True
         except Exception as e:
             logger.error(f"Error marking email as read: {e}")
@@ -272,7 +272,7 @@ class GmailService:
                 id=message_id,
                 body={"addLabelIds": ["UNREAD"]},
             ).execute()
-            logger.info(f"Marked email {message_id} as unread")
+            logger.debug(f"Marked email {message_id} as unread")
             return True
         except Exception as e:
             logger.error(f"Error marking email as unread: {e}")

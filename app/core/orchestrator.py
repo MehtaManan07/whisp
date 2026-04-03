@@ -28,7 +28,7 @@ class MessageOrchestrator:
         category_classifier: CategoryClassifier,
     ):
         self.logger = logger
-        logger.info("Initializing MessageOrchestrator")
+        logger.debug("Initializing MessageOrchestrator")
         self.users_service = users_service
         self.intent_classifier = intent_classifier
         self.llm_service = llm_service
@@ -100,7 +100,7 @@ class MessageOrchestrator:
         )
 
         if pending_items:
-            self.logger.info(
+            self.logger.debug(
                 "Non-reply routed to normal intent flow despite pending transactions: user=%s pending_count=%d",
                 payload.contact.wa_id,
                 len(pending_items),
@@ -156,11 +156,10 @@ class MessageOrchestrator:
         )
 
         if pending_confirmation:
-            self.logger.info(
-                "Reply matched pending transaction: user=%s prompt_message_id=%s amount=%.2f",
+            self.logger.debug(
+                "Reply matched pending transaction: user=%s prompt_message_id=%s",
                 payload.contact.wa_id,
                 replied_to_message_id,
-                pending_confirmation.transaction_data.amount,
             )
             return await self.handle_pending_transaction_description(
                 payload=payload,
@@ -169,10 +168,9 @@ class MessageOrchestrator:
                 bank_transaction_service=bank_transaction_service,
             )
 
-        self.logger.info(
-            "Reply not matched to pending prompt; falling back to normal intent flow: user=%s prompt_message_id=%s",
+        self.logger.debug(
+            "Reply not matched to pending prompt, falling back to intent flow: user=%s",
             payload.contact.wa_id,
-            replied_to_message_id,
         )
         return await self.handle_free_text(payload, user)
 
@@ -222,11 +220,10 @@ class MessageOrchestrator:
         synthetic_message = (
             f"I spent ₹{pending_confirmation.transaction_data.amount:,.2f} on {text}"
         )
-        self.logger.info(
-            "Building synthetic expense message: user=%s gmail_message_id=%s message=%s",
+        self.logger.debug(
+            "Building synthetic expense message: user=%s gmail_message_id=%s",
             payload.contact.wa_id,
             pending_confirmation.gmail_message_id,
-            synthetic_message,
         )
 
         try:
@@ -264,11 +261,10 @@ class MessageOrchestrator:
             user_id=user.id,
             user_timezone=user_timezone,
         )
-        self.logger.info(
-            "Expense routed successfully from pending transaction: user=%s gmail_message_id=%s amount=%.2f",
+        self.logger.debug(
+            "Expense routed from pending transaction: user=%s gmail_message_id=%s",
             payload.contact.wa_id,
             pending_confirmation.gmail_message_id,
-            extracted_dto.amount,
         )
 
         await bank_transaction_service.clear_pending_confirmation(
