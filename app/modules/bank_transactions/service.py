@@ -1,7 +1,8 @@
 """Service for processing bank transaction emails."""
 
+import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
@@ -54,7 +55,7 @@ class BankTransactionService:
             except (ValueError, TypeError):
                 logger.warning(f"Invalid cached date format: {cached_date}")
         
-        return datetime.now() - timedelta(days=DEFAULT_LOOKBACK_DAYS)
+        return datetime.now(timezone.utc) - timedelta(days=DEFAULT_LOOKBACK_DAYS)
     
     async def _update_pointer_date(self, new_date: datetime) -> None:
         """Update last processed date in cache."""
@@ -288,7 +289,8 @@ class BankTransactionService:
             ]
             emails = []
             for sender in bank_senders:
-                fetched = self.gmail_service.fetch_emails(
+                fetched = await asyncio.to_thread(
+                    self.gmail_service.fetch_emails,
                     from_email=sender,
                     after_date=pointer_date,
                     max_results=max_results,
@@ -310,7 +312,12 @@ class BankTransactionService:
                     parsed_data = parse_bank_transaction_email(email)
                     
                     if not parsed_data:
-                        # Not a recognized bank transaction email
+                        # Not a recognized bank transaction email — mark as read
+                        # so it doesn't pile up and crowd out real transactions.
+                        try:
+                            await asyncio.to_thread(self.gmail_service.mark_as_read, email.id)
+                        except Exception:
+                            pass
                         logger.debug("Email %s skipped: not a supported bank transaction", email.id)
                         continue
 
@@ -372,17 +379,18 @@ class BankTransactionService:
                             logger.error(error_msg)
                             errors.append(error_msg)
                     
-                    # Mark email as read so it's not fetched again
-                    try:
-                        self.gmail_service.mark_as_read(email.id)
-                    except Exception as e:
-                        logger.warning(f"Failed to mark email {email.id} as read: {e}")
-
-                    # Save to database
+                    # Save to database BEFORE marking as read so we don't
+                    # lose the transaction if the DB write fails.
                     await run_db(
                         lambda db, eid=email.id, pd=parsed_data, ws=whatsapp_sent:
                         self._save_processed_transaction_sync(db, eid, pd, ws)
                     )
+
+                    # Mark email as read so it's not fetched again
+                    try:
+                        await asyncio.to_thread(self.gmail_service.mark_as_read, email.id)
+                    except Exception as e:
+                        logger.warning(f"Failed to mark email {email.id} as read: {e}")
                     
                     processed_count += 1
                     

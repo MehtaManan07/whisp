@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from typing import Callable, Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -70,12 +71,7 @@ class SchedulerService:
         
         # Optionally run immediately
         if run_immediately:
-            # Get the job and run it
-            job = self.scheduler.get_job(job_id)
-            if job:
-                self.scheduler.modify_job(job_id, next_run_time=None)
-                # Re-add to trigger immediately
-                self.scheduler.reschedule_job(job_id, trigger=trigger)
+            self.scheduler.modify_job(job_id, next_run_time=datetime.now())
 
     def remove_job(self, job_id: str) -> bool:
         """
