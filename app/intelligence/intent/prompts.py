@@ -21,6 +21,9 @@ INTENT_PATTERNS = {
     r"\b(budget|limit|max|cap)\b.*\d+": "SET_BUDGET",
     r"\d+.*\b(budget|limit|max|cap)\b": "SET_BUDGET",
     r"\b(limit|max|cap)\b.*\b(on|for)\b": "SET_BUDGET",
+    r"\b(remove|delete|cancel|stop|disable)\b.*\bbudget": "DELETE_BUDGET",
+    r"\bbudget\b.*(remove|delete|cancel|stop)": "DELETE_BUDGET",
+    r"\b(remove|delete|cancel)\b.*\b(limit|cap)\b": "DELETE_BUDGET",
     r"\b(show|view|list|check|see|what)\b.*\bbudget": "VIEW_BUDGETS",
     r"\bbudget\b.*(show|view|list|check)": "VIEW_BUDGETS",
     r"\bwhat.*(limit|cap|budget)": "VIEW_BUDGETS",
@@ -73,6 +76,8 @@ Examples:
 "Limit food delivery to 5000" → {{"intent": "set_budget"}}
 "Show my budgets" → {{"intent": "view_budgets"}}
 "What are my spending limits?" → {{"intent": "view_budgets"}}
+"Remove food budget" → {{"intent": "delete_budget"}}
+"Delete my transport limit" → {{"intent": "delete_budget"}}
 
 User message:
 {message}

@@ -1,7 +1,7 @@
 from app.intelligence.intent.base_handler import BaseHandlers
 from app.intelligence.intent.decorators import intent_handler
 from app.intelligence.intent.types import CLASSIFIED_RESULT, IntentType
-from app.modules.budgets.dto import CreateBudgetModel, ViewBudgetsModel
+from app.modules.budgets.dto import CreateBudgetModel, ViewBudgetsModel, DeleteBudgetModel
 from app.modules.budgets.service import BudgetService
 from app.modules.budgets.formatter import format_budget_list, format_budget_set_confirmation
 from app.intelligence.categorization.constants import CATEGORIES
@@ -130,3 +130,20 @@ class BudgetHandlers(BaseHandlers):
     ) -> str:
         budgets = await self.service.get_budgets_with_status(user_id, user_timezone)
         return format_budget_list(budgets)
+
+    @intent_handler(IntentType.DELETE_BUDGET)
+    async def delete_budget(
+        self, classified_result: CLASSIFIED_RESULT, user_id: int, user_timezone: str = "UTC"
+    ) -> str:
+        dto, _ = classified_result
+        if not dto or not isinstance(dto, DeleteBudgetModel):
+            return "I couldn't understand which budget to remove. Try: \"remove food budget\""
+
+        normalized = _normalize_category(dto.category_name)
+        if not normalized:
+            return f"I couldn't match \"{dto.category_name}\" to a category."
+
+        deleted = await self.service.delete_budget(user_id, normalized)
+        if deleted:
+            return f"✅ Budget for *{normalized}* removed. No more warnings for this category."
+        return f"No active budget found for *{normalized}*."

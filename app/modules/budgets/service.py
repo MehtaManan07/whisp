@@ -73,6 +73,28 @@ class BudgetService:
 
         return await run_db(_q)
 
+    async def delete_budget(self, user_id: int, category_name: str) -> bool:
+        """Soft-delete a budget by setting is_active=False."""
+
+        def _delete(db: Session) -> bool:
+            budget = db.execute(
+                select(Budget).where(
+                    Budget.user_id == user_id,
+                    Budget.category_name == category_name,
+                    Budget.is_active == True,
+                    Budget.deleted_at.is_(None),
+                )
+            ).scalar_one_or_none()
+
+            if not budget:
+                return False
+
+            budget.is_active = False
+            budget.deleted_at = utc_now()
+            return True
+
+        return await run_db(_delete)
+
     async def get_budgets_with_status(
         self, user_id: int, user_timezone: str = "UTC"
     ) -> list[dict]:

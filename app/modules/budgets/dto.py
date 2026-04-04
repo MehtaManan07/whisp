@@ -14,3 +14,8 @@ class CreateBudgetModel(BaseModel):
 
 class ViewBudgetsModel(BaseModel):
     user_id: int = Field(description="The user's ID")
+
+
+class DeleteBudgetModel(BaseModel):
+    user_id: int = Field(description="The user's ID")
+    category_name: str = Field(description="Parent category name of the budget to remove")
