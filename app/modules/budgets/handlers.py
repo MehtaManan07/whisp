@@ -136,12 +136,21 @@ class BudgetHandlers(BaseHandlers):
         self, classified_result: CLASSIFIED_RESULT, user_id: int, user_timezone: str = "UTC"
     ) -> str:
         dto, _ = classified_result
-        if not dto or not isinstance(dto, DeleteBudgetModel):
-            return "I couldn't understand which budget to remove. Try: \"remove food budget\""
 
-        normalized = _normalize_category(dto.category_name)
+        # Handle "delete all budgets"
+        raw_category = ""
+        if dto and isinstance(dto, DeleteBudgetModel):
+            raw_category = dto.category_name.strip().lower()
+
+        if raw_category in ("all", "everything", "all budgets", "") or not dto:
+            count = await self.service.delete_all_budgets(user_id)
+            if count:
+                return f"✅ Removed all {count} budget{'s' if count != 1 else ''}. No more warnings."
+            return "You don't have any active budgets."
+
+        normalized = _normalize_category(raw_category)
         if not normalized:
-            return f"I couldn't match \"{dto.category_name}\" to a category."
+            return f"I couldn't match \"{raw_category}\" to a category."
 
         deleted = await self.service.delete_budget(user_id, normalized)
         if deleted:

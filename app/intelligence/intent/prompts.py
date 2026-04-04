@@ -24,6 +24,7 @@ INTENT_PATTERNS = {
     r"\b(remove|delete|cancel|stop|disable)\b.*\bbudget": "DELETE_BUDGET",
     r"\bbudget\b.*(remove|delete|cancel|stop)": "DELETE_BUDGET",
     r"\b(remove|delete|cancel)\b.*\b(limit|cap)\b": "DELETE_BUDGET",
+    r"\b(clear|reset)\b.*\bbudget": "DELETE_BUDGET",
     r"\b(show|view|list|check|see|what)\b.*\bbudget": "VIEW_BUDGETS",
     r"\bbudget\b.*(show|view|list|check)": "VIEW_BUDGETS",
     r"\bwhat.*(limit|cap|budget)": "VIEW_BUDGETS",

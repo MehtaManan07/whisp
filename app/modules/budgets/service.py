@@ -95,6 +95,27 @@ class BudgetService:
 
         return await run_db(_delete)
 
+    async def delete_all_budgets(self, user_id: int) -> int:
+        """Soft-delete all active budgets. Returns count deleted."""
+
+        def _delete_all(db: Session) -> int:
+            budgets = list(
+                db.execute(
+                    select(Budget).where(
+                        Budget.user_id == user_id,
+                        Budget.is_active == True,
+                        Budget.deleted_at.is_(None),
+                    )
+                ).scalars().all()
+            )
+            now = utc_now()
+            for b in budgets:
+                b.is_active = False
+                b.deleted_at = now
+            return len(budgets)
+
+        return await run_db(_delete_all)
+
     async def get_budgets_with_status(
         self, user_id: int, user_timezone: str = "UTC"
     ) -> list[dict]:
