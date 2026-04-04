@@ -4,6 +4,7 @@ from typing import Callable, Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,30 @@ class SchedulerService:
         # Optionally run immediately
         if run_immediately:
             self.scheduler.modify_job(job_id, next_run_time=datetime.now())
+
+    def add_cron_job(
+        self,
+        func: Callable,
+        job_id: str,
+        day_of_week: Optional[str] = None,
+        day: Optional[str] = None,
+        hour: int = 0,
+        minute: int = 0,
+        timezone: str = "Asia/Kolkata",
+        **kwargs,
+    ) -> None:
+        """Add a cron-based job (e.g. every Sunday at 9 PM)."""
+        trigger = CronTrigger(
+            day_of_week=day_of_week,
+            day=day,
+            hour=hour,
+            minute=minute,
+            timezone=timezone,
+        )
+        self.scheduler.add_job(
+            func, trigger=trigger, id=job_id, replace_existing=True, **kwargs
+        )
+        logger.info(f"Added cron job '{job_id}' (day_of_week={day_of_week}, day={day}, {hour:02d}:{minute:02d} {timezone})")
 
     def remove_job(self, job_id: str) -> bool:
         """

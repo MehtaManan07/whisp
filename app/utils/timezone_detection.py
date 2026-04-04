@@ -41,9 +41,9 @@ def detect_timezone_from_phone(phone_number: str) -> str:
     # Normalize phone number (strip spaces and handle edge cases)
     phone_number = phone_number.strip().replace(" ", "").replace("-", "")
     
-    # Ensure it starts with +
+    # Normalize: add + prefix if missing (WhatsApp sends numbers without it)
     if not phone_number.startswith("+"):
-        return "UTC"
+        phone_number = "+" + phone_number
     
     # Check each prefix (longest first to handle overlapping prefixes)
     # Sort by length descending to match longer prefixes first (e.g., +971 before +1)

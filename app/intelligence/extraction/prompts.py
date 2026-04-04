@@ -116,6 +116,21 @@ def build_dto_prompt(message: str, intent: IntentType, user_id: int) -> str:
   - "show food expenses with note lunch meeting" → {"user_id": 1, "note": "lunch meeting"} (note explicitly mentioned)
 """
 
+    # --- Insights query guidance ---
+    insights_query_guidance = ""
+    if intent == IntentType.GET_INSIGHTS:
+        insights_query_guidance = """
+### Insights Query Guidance:
+- **period**: Extract the time period from the message. Use one of: "this_week", "last_week", "this_month", "last_month". Default to "this_week" if unclear.
+- **compare**: Set to true if the user explicitly asks to compare periods (e.g., "compare this month vs last", "how does this week compare").
+- **Examples**:
+  - "how did I spend this week?" → {"user_id": 1, "period": "this_week", "compare": false}
+  - "monthly summary" → {"user_id": 1, "period": "this_month", "compare": false}
+  - "compare this month vs last" → {"user_id": 1, "period": "this_month", "compare": true}
+  - "last week's report" → {"user_id": 1, "period": "last_week", "compare": false}
+  - "where is my money going" → {"user_id": 1, "period": "this_month", "compare": false}
+"""
+
     # --- Final prompt string ---
     return f"""
 You are an expert assistant that converts user messages into a JSON object that matches a predefined data structure (DTO).
@@ -132,7 +147,7 @@ You are an expert assistant that converts user messages into a JSON object that 
 - **CRITICAL**: Always include the `user_id` field in your JSON response with the value: {user_id}
 - **IMPORTANT**: If recurrence_type is NOT "once", then recurrence_config MUST be provided with at least a "time" field (HH:MM format).
 {expense_query_guidance}
-
+{insights_query_guidance}
 ---
 
 ### DTO: `{request_dto.__name__}`

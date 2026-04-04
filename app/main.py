@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.error_handler import global_exception_handler
 from app.core.config import config
 from app.core.scheduler.service import SchedulerService
-from app.core.scheduler.jobs import process_due_reminders
+from app.core.scheduler.jobs import process_due_reminders, send_weekly_reports, send_monthly_reports
 
 from app.integrations.whatsapp.controller import router as whatsapp_router
 from app.modules.expenses.controller import router as expenses_router
@@ -52,6 +52,26 @@ async def lifespan(app: FastAPI):
         logger.info(
             f"📅 Reminders job scheduled every {config.scheduler_reminders_interval_minutes} minute(s)"
         )
+
+        # Weekly spending report: Sunday 9 PM IST
+        scheduler_service.add_cron_job(
+            func=send_weekly_reports,
+            job_id="send_weekly_reports",
+            day_of_week="sun",
+            hour=21,
+            minute=0,
+        )
+        logger.info("📊 Weekly report scheduled: Sunday 9 PM IST")
+
+        # Monthly spending report: 1st of month 9 AM IST
+        scheduler_service.add_cron_job(
+            func=send_monthly_reports,
+            job_id="send_monthly_reports",
+            day="1",
+            hour=9,
+            minute=0,
+        )
+        logger.info("📊 Monthly report scheduled: 1st of month 9 AM IST")
     else:
         logger.info("⏸️ Scheduler is disabled")
     

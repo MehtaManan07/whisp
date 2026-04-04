@@ -17,6 +17,13 @@ INTENT_PATTERNS = {
     r"\b(show|list|view|display|get|check|see)\b.*(my\s+)?reminders?\b": "VIEW_REMINDERS",
     r"\breminders?\b.*(show|list|view|display)": "VIEW_REMINDERS",
     r"\bremind\s+me\b": "SET_REMINDER",
+    # Insights / reports (check BEFORE general view_expenses)
+    r"\b(insight|report|analysis|pattern|trend|overview|breakdown)\b": "GET_INSIGHTS",
+    r"\bhow did i spend\b": "GET_INSIGHTS",
+    r"\bwhere.*(money|spend|penny|rupee).*go": "GET_INSIGHTS",
+    r"\b(weekly|monthly)\s+(report|summary|recap)\b": "GET_INSIGHTS",
+    r"\bspending\s+(pattern|habit|trend|summary)\b": "GET_INSIGHTS",
+    r"\bcompare.*(month|week)\b": "GET_INSIGHTS",
     # Queries - second most common (20-30%)
     r"\b(how much|total|show|list|view|display)\b.*(expense|spending|spent)": "VIEW_EXPENSES",
     r"\b(spending|spent).*\b(this|last|current)\s+(week|month|year)": "VIEW_EXPENSES",
@@ -48,6 +55,11 @@ Examples:
 "No, that's wrong. It should be Entertainment" → {{"intent": "correct_expense"}}
 "Remind me to pay rent on 1st." → {{"intent": "set_reminder"}}
 "Show me all my reminders." → {{"intent": "view_reminders"}}
+"How did I spend this week?" → {{"intent": "get_insights"}}
+"Monthly summary" → {{"intent": "get_insights"}}
+"Compare this month vs last month" → {{"intent": "get_insights"}}
+"Where is my money going?" → {{"intent": "get_insights"}}
+"Show me my spending patterns" → {{"intent": "get_insights"}}
 
 User message:
 {message}
