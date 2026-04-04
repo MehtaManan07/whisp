@@ -92,5 +92,5 @@ Interface: WhatsApp.
 
 - [x] Scheduled WhatsApp message delivery (for reports, alerts, nudges)
 - [x] Analytics query layer (reusable aggregations over expenses)
-- [ ] User preferences store (budgets, goals, notification settings)
+- [x] User preferences store (budgets, goals, notification settings)
 - [ ] LLM-powered insight generation (natural language summaries of data)
