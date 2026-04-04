@@ -17,6 +17,14 @@ INTENT_PATTERNS = {
     r"\b(show|list|view|display|get|check|see)\b.*(my\s+)?reminders?\b": "VIEW_REMINDERS",
     r"\breminders?\b.*(show|list|view|display)": "VIEW_REMINDERS",
     r"\bremind\s+me\b": "SET_REMINDER",
+    # Budget management
+    r"\b(budget|limit|max|cap)\b.*\d+": "SET_BUDGET",
+    r"\d+.*\b(budget|limit|max|cap)\b": "SET_BUDGET",
+    r"\b(limit|max|cap)\b.*\b(on|for)\b": "SET_BUDGET",
+    r"\b(show|view|list|check|see|what)\b.*\bbudget": "VIEW_BUDGETS",
+    r"\bbudget\b.*(show|view|list|check)": "VIEW_BUDGETS",
+    r"\bwhat.*(limit|cap|budget)": "VIEW_BUDGETS",
+    r"\b(my|the)\s+budget": "VIEW_BUDGETS",
     # Insights / reports (check BEFORE general view_expenses)
     r"\b(insight|report|analysis|pattern|trend|overview|breakdown)\b": "GET_INSIGHTS",
     r"\bhow did i spend\b": "GET_INSIGHTS",
@@ -60,6 +68,11 @@ Examples:
 "Compare this month vs last month" → {{"intent": "get_insights"}}
 "Where is my money going?" → {{"intent": "get_insights"}}
 "Show me my spending patterns" → {{"intent": "get_insights"}}
+"Set a budget of 5000 for food per month" → {{"intent": "set_budget"}}
+"Max 3k on restaurants weekly" → {{"intent": "set_budget"}}
+"Limit food delivery to 5000" → {{"intent": "set_budget"}}
+"Show my budgets" → {{"intent": "view_budgets"}}
+"What are my spending limits?" → {{"intent": "view_budgets"}}
 
 User message:
 {message}

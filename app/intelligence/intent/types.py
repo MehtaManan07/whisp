@@ -9,6 +9,7 @@ from app.modules.reminders.dto import (
     UpdateReminderDTO,
 )
 from app.modules.insights.dto import GetInsightsModel
+from app.modules.budgets.dto import CreateBudgetModel, ViewBudgetsModel
 
 
 class IntentType(str, Enum):
@@ -23,6 +24,8 @@ class IntentType(str, Enum):
     VIEW_REMINDERS = "view_reminders"  # Intent to view or list reminders
     EDIT_REMINDER = "edit_reminder"  # Intent to edit a reminder
     GET_INSIGHTS = "get_insights"  # Intent to get spending insights/reports
+    SET_BUDGET = "set_budget"  # Intent to set a spending budget/limit
+    VIEW_BUDGETS = "view_budgets"  # Intent to view active budgets
     UNKNOWN = "unknown"  # Intent could not be determined
 
 
@@ -34,6 +37,8 @@ DTO_UNION = Union[
     ListRemindersDTO,
     UpdateReminderDTO,
     GetInsightsModel,
+    CreateBudgetModel,
+    ViewBudgetsModel,
 ]
 
 INTENT_TO_DTO: Dict[IntentType, Type[DTO_UNION]] = {
@@ -44,6 +49,8 @@ INTENT_TO_DTO: Dict[IntentType, Type[DTO_UNION]] = {
     IntentType.VIEW_REMINDERS: ListRemindersDTO,
     IntentType.EDIT_REMINDER: UpdateReminderDTO,
     IntentType.GET_INSIGHTS: GetInsightsModel,
+    IntentType.SET_BUDGET: CreateBudgetModel,
+    IntentType.VIEW_BUDGETS: ViewBudgetsModel,
 }
 
 CLASSIFIED_RESULT = Tuple[DTO_UNION | None, IntentType]

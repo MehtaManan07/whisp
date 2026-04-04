@@ -136,3 +136,38 @@ async def send_monthly_reports() -> dict:
     except Exception as e:
         logger.error(f"Error in monthly reports job: {e}")
         return {"sent": 0, "errors": 1, "error": str(e)}
+
+
+async def check_budget_warnings() -> dict:
+    """Check all users' budgets and send proactive warnings before spending windows."""
+    from app.core.dependencies import get_whatsapp_service, get_user_service, get_cache_service
+    from app.modules.budgets.service import BudgetService
+
+    whatsapp_service = get_whatsapp_service()
+    user_service = get_user_service()
+    cache_service = get_cache_service()
+    budget_service = BudgetService()
+
+    logger.debug("Starting budget warnings check")
+
+    try:
+        users = await user_service.get_all_users()
+        total_warnings = 0
+
+        for user in users:
+            if not user.phone_number:
+                continue
+            sent = await budget_service.check_and_warn_user(
+                user=user,
+                whatsapp_service=whatsapp_service,
+                cache_service=cache_service,
+            )
+            total_warnings += sent
+
+        if total_warnings:
+            logger.info(f"Budget warnings job completed: {total_warnings} warnings sent")
+        return {"warnings_sent": total_warnings}
+
+    except Exception as e:
+        logger.error(f"Error in budget warnings job: {e}")
+        return {"warnings_sent": 0, "error": str(e)}

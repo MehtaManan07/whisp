@@ -28,14 +28,14 @@ Interface: WhatsApp.
 ## Phase 2: Set Limits, Get Warned
 
 ### Budget Limits & Alerts
-- [ ] Set budget per category: "max 5k on restaurants this month"
+- [x] Set budget per category: "max 5k on restaurants this month"
 - [ ] Set overall monthly budget
-- [ ] Alert at 50%, 80%, 100% of budget via WhatsApp
-- [ ] Daily/weekly budget pacing: "You've used 60% of your food budget and we're only halfway through the month"
+- [x] Alert at 50%, 80%, 100% of budget via WhatsApp
+- [x] Daily/weekly budget pacing: "You've used 60% of your food budget and we're only halfway through the month"
 - [ ] Budget rollover or reset options (monthly)
 
 ### Spending Pattern Alerts (Proactive)
-- [ ] Detect unusual spending velocity: "3.2k on Swiggy in 8 days, 2x your usual"
+- [x] Detect unusual spending velocity: "3.2k on Swiggy in 8 days, 2x your usual"
 - [ ] Weekend splurge detection
 - [ ] Frequency alerts: "4th Rapido ride today"
 - [ ] High-amount outlier detection for a category

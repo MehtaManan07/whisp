@@ -131,6 +131,32 @@ def build_dto_prompt(message: str, intent: IntentType, user_id: int) -> str:
   - "where is my money going" → {"user_id": 1, "period": "this_month", "compare": false}
 """
 
+    # --- Budget setting guidance ---
+    budget_query_guidance = ""
+    if intent == IntentType.SET_BUDGET:
+        budget_query_guidance = """
+### Budget Setting Guidance:
+- **category_name**: Must be a parent category. Normalize fuzzy input:
+  "food" / "food delivery" / "restaurants" / "dining" / "swiggy" / "zomato" → "Food & Dining"
+  "transport" / "cab" / "ride" / "rapido" / "uber" / "ola" → "Transportation"
+  "shopping" / "clothes" / "amazon" / "online shopping" → "Shopping"
+  "bills" / "utilities" / "rent" / "electricity" / "internet" → "Bills & Utilities"
+  "entertainment" / "movies" / "netflix" / "games" → "Entertainment"
+  "health" / "doctor" / "medical" / "pharmacy" → "Healthcare"
+  "education" / "courses" / "books" → "Education"
+  "travel" / "hotel" / "flights" → "Travel"
+  "personal" / "salon" / "gym" / "grooming" → "Personal Care"
+  "business" / "office" / "professional" → "Business"
+  "investment" / "stocks" / "mutual funds" → "Investments"
+  "gifts" / "charity" / "donations" → "Gifts & Donations"
+- **amount_limit**: Extract the numeric amount. "5k" = 5000, "3k" = 3000, "10k" = 10000.
+- **period**: "weekly" or "monthly". Default to "monthly" if not specified.
+- **Examples**:
+  - "max 5k on food per month" → {"user_id": 1, "category_name": "Food & Dining", "amount_limit": 5000, "period": "monthly"}
+  - "limit restaurants to 3000 weekly" → {"user_id": 1, "category_name": "Food & Dining", "amount_limit": 3000, "period": "weekly"}
+  - "budget 2000 for transport" → {"user_id": 1, "category_name": "Transportation", "amount_limit": 2000, "period": "monthly"}
+"""
+
     # --- Final prompt string ---
     return f"""
 You are an expert assistant that converts user messages into a JSON object that matches a predefined data structure (DTO).
@@ -148,6 +174,7 @@ You are an expert assistant that converts user messages into a JSON object that 
 - **IMPORTANT**: If recurrence_type is NOT "once", then recurrence_config MUST be provided with at least a "time" field (HH:MM format).
 {expense_query_guidance}
 {insights_query_guidance}
+{budget_query_guidance}
 ---
 
 ### DTO: `{request_dto.__name__}`
