@@ -139,10 +139,10 @@ class BudgetHandlers(BaseHandlers):
 
         # Handle "delete all budgets"
         raw_category = ""
-        if dto and isinstance(dto, DeleteBudgetModel):
+        if dto and isinstance(dto, DeleteBudgetModel) and dto.category_name:
             raw_category = dto.category_name.strip().lower()
 
-        if raw_category in ("all", "everything", "all budgets", "") or not dto:
+        if not raw_category or raw_category in ("all", "everything", "all budgets"):
             count = await self.service.delete_all_budgets(user_id)
             if count:
                 return f"✅ Removed all {count} budget{'s' if count != 1 else ''}. No more warnings."
