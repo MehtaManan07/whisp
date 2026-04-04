@@ -12,7 +12,6 @@ from app.modules.expenses.models import Expense
 from app.modules.categories.models import Category
 from app.modules.reminders.models import Reminder
 from app.core.cache.models import Cache
-from app.modules.bank_transactions.models import ProcessedBankTransaction
 
 # Load environment variables from .env file
 load_dotenv()

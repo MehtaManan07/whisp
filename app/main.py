@@ -6,14 +6,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.error_handler import global_exception_handler
 from app.core.config import config
 from app.core.scheduler.service import SchedulerService
-from app.core.scheduler.jobs import process_due_reminders, process_bank_transaction_emails
+from app.core.scheduler.jobs import process_due_reminders
 
 from app.integrations.whatsapp.controller import router as whatsapp_router
 from app.modules.expenses.controller import router as expenses_router
 from app.modules.categories.controller import router as categories_router
 from app.modules.users.controller import router as users_router
 from app.modules.reminders.controller import router as reminders_router
-from app.modules.bank_transactions.controller import router as bank_transactions_router
 
 # Configure logging to output to console
 logging.basicConfig(
@@ -53,17 +52,6 @@ async def lifespan(app: FastAPI):
         logger.info(
             f"📅 Reminders job scheduled every {config.scheduler_reminders_interval_minutes} minute(s)"
         )
-        
-        # Add bank transaction email job (every 5 minutes by default)
-        if config.bank_transactions_enabled:
-            scheduler_service.add_interval_job(
-                func=process_bank_transaction_emails,
-                minutes=config.scheduler_bank_transactions_interval_minutes,
-                job_id="process_bank_transaction_emails",
-            )
-            logger.info(
-                f"💳 Bank transaction job scheduled every {config.scheduler_bank_transactions_interval_minutes} minute(s)"
-            )
     else:
         logger.info("⏸️ Scheduler is disabled")
     
@@ -99,7 +87,6 @@ app.include_router(expenses_router)
 app.include_router(categories_router)
 app.include_router(users_router)
 app.include_router(reminders_router)
-app.include_router(bank_transactions_router)
 
 
 @app.get("/demo")

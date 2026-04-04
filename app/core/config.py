@@ -30,14 +30,6 @@ class Config(BaseSettings):
     )
     is_production: bool = os.getenv("ENVIRONMENT", "development").lower() == "production"
     
-    # Gmail Configuration
-    gmail_credentials_path: str = Field(
-        default="credentials.json", alias="GMAIL_CREDENTIALS_PATH"
-    )
-    gmail_token_path: str = Field(
-        default="token.json", alias="GMAIL_TOKEN_PATH"
-    )
-    
     # Scheduler Configuration (APScheduler)
     scheduler_enabled: bool = Field(
         default=True, alias="SCHEDULER_ENABLED"
@@ -45,18 +37,6 @@ class Config(BaseSettings):
     scheduler_reminders_interval_minutes: int = Field(
         default=1, alias="SCHEDULER_REMINDERS_INTERVAL_MINUTES"
     )
-    scheduler_bank_transactions_interval_minutes: int = Field(
-        default=5, alias="SCHEDULER_BANK_TRANSACTIONS_INTERVAL_MINUTES"
-    )
-    
-    # Bank Transactions Configuration
-    bank_transactions_whatsapp_number: str = Field(
-        default="", alias="BANK_TRANSACTIONS_WHATSAPP_NUMBER"
-    )
-    bank_transactions_enabled: bool = Field(
-        default=True, alias="BANK_TRANSACTIONS_ENABLED"
-    )
-
     # Path to .env file (for loading env vars)
     class Config:
         env_file = ".env"

@@ -44,7 +44,6 @@ def check_tables_exist() -> bool:
         "expenses",
         "categories",
         "reminders",
-        "processed_bank_transactions",
         "cache",
     ]
     try:
@@ -72,7 +71,6 @@ def check_table_row_counts() -> bool:
         "expenses",
         "categories",
         "reminders",
-        "processed_bank_transactions",
     ]
     try:
         with SessionLocal() as session:

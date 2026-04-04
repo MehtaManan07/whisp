@@ -13,12 +13,10 @@ from app.core.cache.sqlalchemy_cache_client import SQLAlchemyCacheClient
 from app.core.cache.service import CacheService
 from app.integrations.llm.service import LLMService
 from app.integrations.whatsapp.service import WhatsAppService
-from app.integrations.gmail.service import GmailService
 from app.modules.expenses.service import ExpensesService
 from app.modules.users.service import UsersService
 from app.modules.reminders.service import ReminderService
 from app.modules.categories.service import CategoriesService
-from app.modules.bank_transactions.service import BankTransactionService
 from app.intelligence.intent.classifier import IntentClassifier
 from app.intelligence.categorization.classifier import CategoryClassifier
 from app.core.orchestrator import MessageOrchestrator
@@ -84,30 +82,6 @@ def get_reminder_service():
     return ReminderService()
 
 
-@lru_cache()
-def get_gmail_service():
-    """Gmail service - SINGLETON"""
-    return GmailService(
-        credentials_path=config.gmail_credentials_path,
-        token_path=config.gmail_token_path,
-    )
-
-
-@lru_cache()
-def get_bank_transaction_service():
-    """Bank transaction service - SINGLETON"""
-    gmail_service = get_gmail_service()
-    whatsapp_service = get_whatsapp_service()
-    cache_service = get_cache_service()
-
-    return BankTransactionService(
-        gmail_service=gmail_service,
-        whatsapp_service=whatsapp_service,
-        cache_service=cache_service,
-        whatsapp_number=config.bank_transactions_whatsapp_number,
-    )
-
-
 # ============================================================================
 # INTELLIGENCE LAYER (Singletons)
 # ============================================================================
@@ -166,9 +140,3 @@ OrchestratorDep = Annotated[MessageOrchestrator, Depends(get_orchestrator)]
 
 # Cache dependencies
 CacheServiceDep = Annotated[CacheService, Depends(get_cache_service)]
-
-# Gmail dependencies
-GmailServiceDep = Annotated[GmailService, Depends(get_gmail_service)]
-
-# Bank transaction dependencies
-BankTransactionServiceDep = Annotated[BankTransactionService, Depends(get_bank_transaction_service)]

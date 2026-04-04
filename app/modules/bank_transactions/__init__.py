@@ -1,1 +1,0 @@
-"""Bank transaction processing module."""
