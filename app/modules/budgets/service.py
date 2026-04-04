@@ -15,13 +15,6 @@ from app.utils.datetime import utc_now
 
 logger = logging.getLogger(__name__)
 
-# Default danger windows when no spending history exists
-_DEFAULT_WINDOWS = {
-    "Food & Dining": [{"hour": 12, "dow": "*"}, {"hour": 19, "dow": "*"}, {"hour": 20, "dow": "*"}],
-    "Transportation": [{"hour": 8, "dow": "*"}, {"hour": 17, "dow": "*"}],
-    "Shopping": [{"hour": 19, "dow": "6"}, {"hour": 14, "dow": "6"}],
-    "Entertainment": [{"hour": 19, "dow": "*"}, {"hour": 20, "dow": "5"}, {"hour": 20, "dow": "6"}],
-}
 
 
 class BudgetService:
@@ -142,9 +135,7 @@ class BudgetService:
 
         windows = await run_db(_analyze)
 
-        if not windows:
-            windows = _DEFAULT_WINDOWS.get(category_name, [])
-
+        # No defaults — proactive warnings only work once real patterns exist
         await cache_service.set_key(cache_key, windows, ttl=604800)  # 7 days
         return windows
 
