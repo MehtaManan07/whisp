@@ -77,11 +77,11 @@ class CategoryNotFoundError(NotFoundError):
         super().__init__("Category", category_id)
 
 
-class WhatsAppAPIError(ExternalServiceError):
-    """Raised when WhatsApp API calls fail."""
-    
+class TelegramAPIError(ExternalServiceError):
+    """Raised when Telegram Bot API calls fail."""
+
     def __init__(self, message: str):
-        super().__init__("WhatsApp API", message)
+        super().__init__("Telegram API", message)
 
 
 class LLMServiceError(ExternalServiceError):

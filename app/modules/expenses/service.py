@@ -215,6 +215,49 @@ class ExpensesService:
 
         await run_db(_update)
 
+    async def get_dominant_category_for_vendor(
+        self, user_id: int, vendor: str
+    ) -> Dict[str, Any] | None:
+        """Return the most-frequent (category, subcategory) the user has assigned
+        to this vendor, with agreement ratio. Returns None if no history exists."""
+        def _get(db: Session) -> Dict[str, Any] | None:
+            sub = Category.__table__.alias("sub")
+            parent = Category.__table__.alias("parent")
+
+            rows = db.execute(
+                select(
+                    parent.c.name.label("category"),
+                    sub.c.name.label("subcategory"),
+                    func.count().label("count"),
+                )
+                .select_from(Expense)
+                .join(sub, Expense.category_id == sub.c.id)
+                .join(parent, sub.c.parent_id == parent.c.id)
+                .where(
+                    Expense.user_id == user_id,
+                    Expense.vendor == vendor.lower().strip(),
+                    Expense.deleted_at.is_(None),
+                    Expense.category_id.isnot(None),
+                )
+                .group_by(parent.c.name, sub.c.name)
+                .order_by(func.count().desc())
+            ).all()
+
+            if not rows:
+                return None
+
+            total = sum(r.count for r in rows)
+            top = rows[0]
+            return {
+                "category": top.category,
+                "subcategory": top.subcategory,
+                "count": top.count,
+                "total": total,
+                "agreement": top.count / total,
+            }
+
+        return await run_db(_get)
+
     async def get_latest_expense(
         self, user_id: int
     ) -> Expense | None:

@@ -4,13 +4,13 @@ from typing import Optional
 
 from app.core.exceptions import ValidationError, DatabaseError
 from app.intelligence.extraction.router import route_intent
-from app.integrations.whatsapp.schema import HandleMessagePayload, ProcessMessageResult
+from app.core.messaging import HandleMessagePayload, ProcessMessageResult
 from app.intelligence.extraction.extractor import extract_dto
 from app.intelligence.intent.classifier import IntentClassifier
 from app.intelligence.categorization.classifier import CategoryClassifier
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.models import User
-import app.core.constants.whatsapp_responses as message_constants
+import app.core.constants.responses as message_constants
 from app.intelligence.intent.types import IntentType
 from app.modules.users.service import UsersService
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class MessageOrchestrator:
-    """Central service for handling incoming WhatsApp messages."""
+    """Central service for handling incoming messages from any chat channel."""
 
     def __init__(
         self,
@@ -51,7 +51,7 @@ class MessageOrchestrator:
 
             if text.startswith("/"):
                 return await self.handle_command(payload)
-            elif payload.message.context:
+            elif payload.message.reply_to_id:
                 return await self.handle_reply(payload, user)
             else:
                 return await self.handle_free_text(payload, user)
@@ -60,6 +60,7 @@ class MessageOrchestrator:
             user_message = message_constants.get_user_friendly_error_message(e)
             return ProcessMessageResult(status="error", messages=[user_message])
 
+    # =============================================================================
     # MESSAGE TYPE HANDLERS
     # =============================================================================
 
@@ -72,7 +73,7 @@ class MessageOrchestrator:
             return None
 
         match text:
-            case "/help":
+            case "/help" | "/start":
                 return await self.handle_help_command(payload)
             case _:
                 return ProcessMessageResult(
@@ -134,7 +135,7 @@ class MessageOrchestrator:
     ) -> ProcessMessageResult:
         """Handle help command."""
         message = message_constants.HELP_MESSAGES.help(
-            name=payload.contact.profile.get("name", "buddy")
+            name=payload.contact.name or "buddy"
         )
         return ProcessMessageResult(messages=[message], status="success")
 
@@ -145,15 +146,14 @@ class MessageOrchestrator:
     async def _ensure_user(self, payload: HandleMessagePayload):
         """Ensure user exists in database."""
         try:
-            if not payload.contact or not payload.contact.wa_id:
+            if not payload.contact or not payload.contact.external_id:
                 raise ValidationError("Invalid contact information in message payload")
 
             user_data = await self.users_service.find_or_create(
                 user_data=CreateUserDto(
-                    wa_id=payload.contact.wa_id,
-                    phone_number=payload.from_,
-                    name=payload.contact.profile.get("name", ""),
-                    meta={"phone_number": payload.from_},
+                    telegram_id=payload.contact.external_id,
+                    name=payload.contact.name or "",
+                    meta={"sender_id": payload.sender_id},
                 ),
             )
             return user_data["user"]
@@ -165,4 +165,4 @@ class MessageOrchestrator:
         """Extract and clean text from message payload."""
         if not payload.message.text:
             return None
-        return payload.message.text.body.strip().lower()
+        return payload.message.text.strip().lower()

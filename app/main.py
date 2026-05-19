@@ -8,7 +8,7 @@ from app.core.config import config
 from app.core.scheduler.service import SchedulerService
 from app.core.scheduler.jobs import process_due_reminders, send_weekly_reports, send_monthly_reports, check_budget_warnings
 
-from app.integrations.whatsapp.controller import router as whatsapp_router
+from app.integrations.telegram.controller import router as telegram_router
 from app.modules.expenses.controller import router as expenses_router
 from app.modules.categories.controller import router as categories_router
 from app.modules.users.controller import router as users_router
@@ -110,7 +110,7 @@ app.add_middleware(
 )
 
 # Routers
-app.include_router(whatsapp_router)
+app.include_router(telegram_router)
 app.include_router(expenses_router)
 app.include_router(categories_router)
 app.include_router(users_router)

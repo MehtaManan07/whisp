@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Query
-from typing import List, Optional
+from typing import List
 
 from app.core.dependencies import UserServiceDep
-from app.core.exceptions import UserNotFoundError, ValidationError, ConflictError
+from app.core.exceptions import UserNotFoundError, ValidationError
 from app.modules.users.dto import CreateUserDto, UpdateUserDto, UserResponseDto
 from app.modules.users.types import FindOrCreateResult
 
@@ -15,8 +15,8 @@ async def create_user(
     user_service: UserServiceDep,
 ) -> UserResponseDto:
     """Create a new user or return existing one"""
-    if not user_data.wa_id:
-        raise ValidationError("WhatsApp ID is required")
+    if not user_data.telegram_id:
+        raise ValidationError("Telegram ID is required")
 
     result: FindOrCreateResult = await user_service.find_or_create(user_data)
     return UserResponseDto.model_validate(result["user"])
@@ -38,18 +38,18 @@ async def get_user(
     return UserResponseDto.model_validate(user)
 
 
-@router.get("/wa/{wa_id}", response_model=UserResponseDto)
-async def get_user_by_wa_id(
-    wa_id: str,
+@router.get("/tg/{telegram_id}", response_model=UserResponseDto)
+async def get_user_by_telegram_id(
+    telegram_id: str,
     user_service: UserServiceDep,
 ) -> UserResponseDto:
-    """Get user by WhatsApp ID"""
-    if not wa_id or not wa_id.strip():
-        raise ValidationError("WhatsApp ID is required")
+    """Get user by Telegram ID"""
+    if not telegram_id or not telegram_id.strip():
+        raise ValidationError("Telegram ID is required")
 
-    user = await user_service.get_user_by_wa_id(wa_id)
+    user = await user_service.get_user_by_telegram_id(telegram_id)
     if not user:
-        raise UserNotFoundError(wa_id)
+        raise UserNotFoundError(telegram_id)
 
     return UserResponseDto.model_validate(user)
 
@@ -61,12 +61,6 @@ async def get_all_users(
     offset: int = Query(default=0, ge=0, description="Number of users to skip"),
 ) -> List[UserResponseDto]:
     """Get all users with pagination"""
-    if limit <= 0 or limit > 1000:
-        raise ValidationError("Limit must be between 1 and 1000")
-
-    if offset < 0:
-        raise ValidationError("Offset must be non-negative")
-
     users = await user_service.get_all_users(limit=limit, offset=offset)
     return [UserResponseDto.model_validate(user) for user in users]
 

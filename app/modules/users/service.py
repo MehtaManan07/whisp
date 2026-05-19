@@ -23,7 +23,7 @@ class UsersService:
 
     def find_or_create_sync(self, db: Session, user_data: CreateUserDto) -> FindOrCreateResult:
         """Find existing user or create new one (sync)."""
-        result = db.execute(select(User).where(User.wa_id == user_data.wa_id))
+        result = db.execute(select(User).where(User.telegram_id == user_data.telegram_id))
         user = result.scalar_one_or_none()
 
         if user:
@@ -37,7 +37,7 @@ class UsersService:
             )
 
         new_user = User(
-            wa_id=user_data.wa_id,
+            telegram_id=user_data.telegram_id,
             name=user_data.name,
             phone_number=user_data.phone_number,
             timezone=detected_timezone,
@@ -63,22 +63,12 @@ class UsersService:
     async def find_or_create(self, user_data: CreateUserDto) -> FindOrCreateResult:
         return await run_db(lambda db: self.find_or_create_sync(db, user_data))
 
-    async def get_or_create_by_phone(self, phone_number: str) -> User:
-        user_data = CreateUserDto(
-            wa_id=phone_number,
-            phone_number=phone_number,
-            name=None,
-            meta=None,
-        )
-        result = await self.find_or_create(user_data)
-        return result["user"]
-
     async def get_user_by_id(self, user_id: int) -> Optional[User]:
         return await run_db(lambda db: self.get_user_by_id_sync(db, user_id))
 
-    async def get_user_by_wa_id(self, wa_id: str) -> Optional[User]:
+    async def get_user_by_telegram_id(self, telegram_id: str) -> Optional[User]:
         def _get(db: Session) -> Optional[User]:
-            result = db.execute(select(User).where(User.wa_id == wa_id))
+            result = db.execute(select(User).where(User.telegram_id == telegram_id))
             return result.scalar_one_or_none()
 
         return await run_db(_get)
@@ -139,5 +129,4 @@ class UsersService:
         return user.timezone if user and user.timezone else "UTC"
 
 
-# Global service instance
 users_service = UsersService()

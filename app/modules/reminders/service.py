@@ -7,7 +7,7 @@ import logging
 from app.modules.reminders.models import Reminder
 
 if TYPE_CHECKING:
-    from app.integrations.whatsapp.service import WhatsAppService
+    from app.integrations.telegram.service import TelegramService
     from app.modules.users.service import UsersService
     from app.modules.users.models import User
 from app.modules.reminders.types import RecurrenceType, RecurrenceConfig
@@ -389,7 +389,7 @@ class ReminderService:
         self,
         reminder_id: int,
         user_service: "UsersService" = None,
-        whatsapp_service: "WhatsAppService" = None,
+        telegram_service: "TelegramService" = None,
         reminder: Reminder = None,
         user: "User" = None,
     ) -> dict[str, Any]:
@@ -423,17 +423,16 @@ class ReminderService:
 
             if user is None and user_service is not None:
                 user = await user_service.get_user_by_id(reminder.user_id)
-            if not user or not user.phone_number:
-                logger.error(f"User {reminder.user_id} not found or has no phone number")
+            if not user or not user.telegram_id:
+                logger.error(f"User {reminder.user_id} not found or has no telegram_id")
                 return {
                     "status": "error",
-                    "message": f"User {reminder.user_id} not found or has no phone number",
+                    "message": f"User {reminder.user_id} not found or has no telegram_id",
                     "processed": 0,
                 }
 
             user_timezone = user.timezone or "UTC"
 
-            # Send WhatsApp notification
             try:
                 message = f"🔔 Reminder: {reminder.title}"
                 if reminder.amount:
@@ -441,11 +440,11 @@ class ReminderService:
                 if reminder.description:
                     message += f"\n\n{reminder.description}"
 
-                await whatsapp_service.send_text(user.phone_number, message)
-                logger.info(f"Sent reminder {reminder.id} to user {user.phone_number}")
+                await telegram_service.send_text(user.telegram_id, message)
+                logger.info(f"Sent reminder {reminder.id} to user {user.telegram_id}")
             except Exception as e:
                 logger.error(
-                    f"Failed to send WhatsApp notification for reminder {reminder.id}: {e}"
+                    f"Failed to send Telegram notification for reminder {reminder.id}: {e}"
                 )
                 return {
                     "status": "error",

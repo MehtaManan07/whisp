@@ -248,7 +248,7 @@ class BudgetService:
     # Proactive warning check
     # ------------------------------------------------------------------
 
-    async def check_and_warn_user(self, user, whatsapp_service, cache_service) -> int:
+    async def check_and_warn_user(self, user, telegram_service, cache_service) -> int:
         """Check all budgets for a user, send warnings if approaching limit before spending window."""
         user_timezone = user.timezone or "UTC"
         tz = ZoneInfo(user_timezone)
@@ -298,7 +298,7 @@ class BudgetService:
             )
 
             try:
-                await whatsapp_service.send_text(user.phone_number, message)
+                await telegram_service.send_text(user.telegram_id, message)
                 await cache_service.set_key(spam_key, "1", ttl=86400)
                 warnings_sent += 1
                 logger.info(

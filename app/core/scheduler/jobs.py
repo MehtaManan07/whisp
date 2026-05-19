@@ -9,21 +9,13 @@ logger = logging.getLogger(__name__)
 
 
 async def process_due_reminders() -> dict:
-    """
-    Process all due reminders.
-
-    This job runs periodically to check for reminders that are due
-    and sends WhatsApp notifications for each one.
-
-    Returns:
-        Summary of processed reminders
-    """
+    """Process all due reminders and send Telegram notifications."""
     from app.core.dependencies import (
-        get_whatsapp_service,
+        get_telegram_service,
         get_reminder_service,
     )
 
-    whatsapp_service = get_whatsapp_service()
+    telegram_service = get_telegram_service()
     reminder_service = get_reminder_service()
 
     processed_count = 0
@@ -44,7 +36,7 @@ async def process_due_reminders() -> dict:
             try:
                 result = await reminder_service.process_single_reminder(
                     reminder_id=reminder.id,
-                    whatsapp_service=whatsapp_service,
+                    telegram_service=telegram_service,
                     reminder=reminder,
                     user=user,
                 )
@@ -74,10 +66,10 @@ async def process_due_reminders() -> dict:
 
 async def send_weekly_reports() -> dict:
     """Send weekly spending report to all active users. Runs Sunday 9 PM IST."""
-    from app.core.dependencies import get_whatsapp_service, get_user_service
+    from app.core.dependencies import get_telegram_service, get_user_service
     from app.modules.insights.reports import ReportsService
 
-    whatsapp_service = get_whatsapp_service()
+    telegram_service = get_telegram_service()
     user_service = get_user_service()
     reports_service = ReportsService()
 
@@ -89,9 +81,9 @@ async def send_weekly_reports() -> dict:
         errors = 0
 
         for user in users:
-            if not user.phone_number:
+            if not user.telegram_id:
                 continue
-            success = await reports_service.send_weekly_report(user, whatsapp_service)
+            success = await reports_service.send_weekly_report(user, telegram_service)
             if success:
                 sent += 1
             else:
@@ -107,10 +99,10 @@ async def send_weekly_reports() -> dict:
 
 async def send_monthly_reports() -> dict:
     """Send monthly spending report to all active users. Runs 1st of month 9 AM IST."""
-    from app.core.dependencies import get_whatsapp_service, get_user_service
+    from app.core.dependencies import get_telegram_service, get_user_service
     from app.modules.insights.reports import ReportsService
 
-    whatsapp_service = get_whatsapp_service()
+    telegram_service = get_telegram_service()
     user_service = get_user_service()
     reports_service = ReportsService()
 
@@ -122,9 +114,9 @@ async def send_monthly_reports() -> dict:
         errors = 0
 
         for user in users:
-            if not user.phone_number:
+            if not user.telegram_id:
                 continue
-            success = await reports_service.send_monthly_report(user, whatsapp_service)
+            success = await reports_service.send_monthly_report(user, telegram_service)
             if success:
                 sent += 1
             else:
@@ -140,10 +132,10 @@ async def send_monthly_reports() -> dict:
 
 async def check_budget_warnings() -> dict:
     """Check all users' budgets and send proactive warnings before spending windows."""
-    from app.core.dependencies import get_whatsapp_service, get_user_service, get_cache_service
+    from app.core.dependencies import get_telegram_service, get_user_service, get_cache_service
     from app.modules.budgets.service import BudgetService
 
-    whatsapp_service = get_whatsapp_service()
+    telegram_service = get_telegram_service()
     user_service = get_user_service()
     cache_service = get_cache_service()
     budget_service = BudgetService()
@@ -155,11 +147,11 @@ async def check_budget_warnings() -> dict:
         total_warnings = 0
 
         for user in users:
-            if not user.phone_number:
+            if not user.telegram_id:
                 continue
             sent = await budget_service.check_and_warn_user(
                 user=user,
-                whatsapp_service=whatsapp_service,
+                telegram_service=telegram_service,
                 cache_service=cache_service,
             )
             total_warnings += sent

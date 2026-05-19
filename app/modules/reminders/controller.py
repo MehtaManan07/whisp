@@ -6,7 +6,7 @@ import logging
 from app.core.dependencies import (
     ReminderServiceDep,
     UserServiceDep,
-    WhatsAppServiceDep,
+    TelegramServiceDep,
 )
 from app.core.exceptions import ValidationError
 from app.core.config import config
@@ -206,11 +206,11 @@ async def process_triggered_reminder(
     reminder_id: int,
     reminder_service: ReminderServiceDep,
     user_service: UserServiceDep,
-    whatsapp_service: WhatsAppServiceDep,
+    telegram_service: TelegramServiceDep,
 ):
     """Process a specific reminder by ID (called by cron jobs)."""
     return await reminder_service.process_single_reminder(
         reminder_id=reminder_id,
         user_service=user_service,
-        whatsapp_service=whatsapp_service,
+        telegram_service=telegram_service,
     )

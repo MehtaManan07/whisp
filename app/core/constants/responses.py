@@ -42,7 +42,6 @@ Tip: You can also just *type naturally!* Try:
 """
 
 
-# Error messages for users
 ERROR_MESSAGES = {
     "GENERIC": "Sorry, I encountered an error processing your message. Please try again in a moment.",
     "VALIDATION": "I couldn't understand your message. Please try rephrasing it.",
@@ -53,53 +52,45 @@ ERROR_MESSAGES = {
     "NOT_FOUND": "I couldn't find what you're looking for. Please check your request.",
 }
 
+
 def get_user_friendly_error_message(error: Exception) -> str:
-    """Convert technical error messages to user-friendly WhatsApp messages"""
-    
-    # For validation errors, use the actual error message
+    """Convert technical error messages into user-friendly chat replies."""
+
     if hasattr(error, 'user_message'):
         return getattr(error, 'user_message')
-    
-    # For specific error types, provide helpful messages
+
     error_str = str(error).lower()
-    
-    # Expense-related errors
+
     if "expense" in error_str and "not found" in error_str:
         return "I couldn't find that expense. It might have been deleted or doesn't exist."
-    
+
     if "amount" in error_str and ("invalid" in error_str or "greater" in error_str):
         return "Please enter a valid amount greater than 0."
-    
+
     if "category" in error_str and "required" in error_str:
         return "Please specify a category for your expense."
-    
-    # User-related errors
+
     if "user" in error_str and "not found" in error_str:
         return "I couldn't find your user account. Please try again or contact support."
-    
-    # Database errors
+
     if "database" in error_str or "connection" in error_str:
         return "I'm having trouble accessing your data right now. Please try again in a moment."
-    
-    # WhatsApp API errors
-    if "whatsapp" in error_str or "message" in error_str:
+
+    if "telegram" in error_str or "message" in error_str:
         return "I'm having trouble sending messages right now. Please try again later."
-    
-    # LLM service errors
+
     if "llm" in error_str or "ai" in error_str or "model" in error_str:
         return "I'm having trouble processing your request with AI services. Please try again later."
-    
-    # Rate limiting
+
     if "rate" in error_str or "limit" in error_str or "too many" in error_str:
         return "You're sending messages too quickly. Please wait a moment before trying again."
-    
-    # Default fallback - use the actual error message if it's user-friendly
-    if len(str(error)) < 100 and not any(tech_word in str(error).lower() for tech_word in 
+
+    if len(str(error)) < 100 and not any(tech_word in str(error).lower() for tech_word in
                                         ['sql', 'database', 'connection', 'timeout', 'exception', 'traceback']):
         return str(error)
-    
-    # For technical errors, use generic message
+
     return ERROR_MESSAGES["GENERIC"]
+
 
 unknown_responses = [
     "That message was so incoherent, I had a brief existential crisis. Thanks for that.",

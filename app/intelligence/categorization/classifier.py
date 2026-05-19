@@ -15,6 +15,7 @@ import json
 
 from app.core.cache.service import CacheService
 from app.integrations.llm.service import LLMService
+from app.modules.expenses.service import ExpensesService
 from .constants import CATEGORIES, KNOWN_MERCHANTS, is_valid_category
 from .prompts import build_classification_prompt, build_query_filter_fallback_prompt
 from .query_mapper import (
@@ -24,11 +25,17 @@ from .query_mapper import (
 )
 from app.intelligence.intent.types import DTO_UNION
 
+HISTORY_MIN_COUNT = 2
+HISTORY_AGREEMENT_THRESHOLD = 0.67
+HISTORY_CONFIDENCE = 0.90
+
 logger = logging.getLogger(__name__)
 
 
 # Type definitions for classification results
-ClassificationMethod = Literal["known_merchant", "cache", "llm", "user_pattern", "default"]
+ClassificationMethod = Literal[
+    "known_merchant", "cache", "llm", "user_pattern", "expense_history", "default"
+]
 ConfidenceLevel = float  # 0.0 to 1.0
 
 # Confidence threshold below which we should ask user to confirm
@@ -83,10 +90,16 @@ class CategoryClassifier:
         - "dispatch" matching "spa" → wrong Personal Care category
     """
 
-    def __init__(self, cache_service: CacheService, llm_service: LLMService):
+    def __init__(
+        self,
+        cache_service: CacheService,
+        llm_service: LLMService,
+        expenses_service: ExpensesService,
+    ):
         """Initialize CategoryClassifier."""
         self.cache = cache_service
         self.llm = llm_service
+        self.expenses = expenses_service
 
     async def classify(
         self,
@@ -116,7 +129,11 @@ class CategoryClassifier:
                 if result := await self._classify_by_user_pattern(user_id, vendor):
                     logger.info(f"User pattern match: {vendor} → {result['category']} > {result['subcategory']}")
                     return result
-            
+
+                if result := await self._classify_by_expense_history(user_id, vendor):
+                    logger.info(f"Expense history match: {vendor} → {result['category']} > {result['subcategory']}")
+                    return result
+
             # Check global cache for this vendor
             cache_key = self._get_cache_key(vendor)
             if cached := await self._get_from_cache(cache_key):
@@ -175,7 +192,7 @@ class CategoryClassifier:
         If the user has corrected this vendor before, use their preference.
         """
         cache_key = f"user_merchant:{user_id}:{vendor.lower().strip()}"
-        
+
         if cached := await self._get_from_cache(cache_key):
             return ClassificationResult(
                 category=cached["category"],
@@ -184,8 +201,38 @@ class CategoryClassifier:
                 method="user_pattern",
                 reasoning=f"User's preferred category for {vendor}",
             )
-        
+
         return None
+
+    async def _classify_by_expense_history(
+        self, user_id: int, vendor: str
+    ) -> Optional[ClassificationResult]:
+        """
+        Look at the user's actual past expenses for this vendor in the DB.
+        Use the dominant (category, subcategory) if there's enough history and
+        sufficient agreement across past entries.
+        """
+        try:
+            stats = await self.expenses.get_dominant_category_for_vendor(user_id, vendor)
+        except Exception as e:
+            logger.warning(f"Expense history lookup failed for vendor={vendor}: {e}")
+            return None
+
+        if not stats or stats["total"] < HISTORY_MIN_COUNT:
+            return None
+        if stats["agreement"] < HISTORY_AGREEMENT_THRESHOLD:
+            return None
+
+        return ClassificationResult(
+            category=stats["category"],
+            subcategory=stats["subcategory"],
+            confidence=HISTORY_CONFIDENCE,
+            method="expense_history",
+            reasoning=(
+                f"{stats['count']}/{stats['total']} past expenses at "
+                f"'{vendor}' were {stats['category']} > {stats['subcategory']}"
+            ),
+        )
 
     async def _classify_with_llm(
         self,

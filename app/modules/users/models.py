@@ -16,12 +16,12 @@ class User(BaseModel):
 
     __tablename__ = "users"
 
-    wa_id: Mapped[str] = mapped_column(
+    telegram_id: Mapped[Optional[str]] = mapped_column(
         String,
         unique=True,
-        nullable=False,
+        nullable=True,
         index=True,
-        comment="WhatsApp ID from webhook",
+        comment="Telegram user ID",
     )
 
     name: Mapped[Optional[str]] = mapped_column(
@@ -66,4 +66,4 @@ class User(BaseModel):
     )
 
     def __repr__(self) -> str:
-        return f"<User(wa_id='{self.wa_id}', name='{self.name}')>"
+        return f"<User(telegram_id='{self.telegram_id}', name='{self.name}')>"
