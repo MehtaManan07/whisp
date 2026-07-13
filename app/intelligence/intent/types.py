@@ -10,6 +10,7 @@ from app.modules.reminders.dto import (
 )
 from app.modules.insights.dto import GetInsightsModel
 from app.modules.budgets.dto import CreateBudgetModel, ViewBudgetsModel, DeleteBudgetModel
+from app.modules.workouts.dto import LogWorkoutModel, ViewWorkoutsModel
 
 
 class IntentType(str, Enum):
@@ -27,6 +28,8 @@ class IntentType(str, Enum):
     SET_BUDGET = "set_budget"  # Intent to set a spending budget/limit
     VIEW_BUDGETS = "view_budgets"  # Intent to view active budgets
     DELETE_BUDGET = "delete_budget"  # Intent to remove/deactivate a budget
+    LOG_WORKOUT = "log_workout"  # Intent to log a completed workout session
+    VIEW_WORKOUTS = "view_workouts"  # Intent to view/list past workouts
     UNKNOWN = "unknown"  # Intent could not be determined
 
 
@@ -41,6 +44,8 @@ DTO_UNION = Union[
     CreateBudgetModel,
     ViewBudgetsModel,
     DeleteBudgetModel,
+    LogWorkoutModel,
+    ViewWorkoutsModel,
 ]
 
 INTENT_TO_DTO: Dict[IntentType, Type[DTO_UNION]] = {
@@ -54,6 +59,8 @@ INTENT_TO_DTO: Dict[IntentType, Type[DTO_UNION]] = {
     IntentType.SET_BUDGET: CreateBudgetModel,
     IntentType.VIEW_BUDGETS: ViewBudgetsModel,
     IntentType.DELETE_BUDGET: DeleteBudgetModel,
+    IntentType.LOG_WORKOUT: LogWorkoutModel,
+    IntentType.VIEW_WORKOUTS: ViewWorkoutsModel,
 }
 
 CLASSIFIED_RESULT = Tuple[DTO_UNION | None, IntentType]

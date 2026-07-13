@@ -42,6 +42,14 @@ INTENT_PATTERNS = {
     # Goals
     r"\b(set|create)\s+(a\s+)?goal\b": "SET_GOAL",
     r"\b(view|show|check)\s+(my\s+)?goals?\b": "VIEW_GOALS",
+    # Workout logging (fitness) — set notation & session keywords
+    r"\blogged with hevy\b": "LOG_WORKOUT",
+    r"\d+\s*kg\s*[x×]\s*\d+": "LOG_WORKOUT",
+    r"\b(did|logged|trained|finished|completed|smashed)\b.*\b(workout|leg day|legs|push day|pull day|upper( body)?|lower( body)?|chest( day)?|back( day)?|shoulders?|arm day|gym session)\b": "LOG_WORKOUT",
+    r"\b(squat|bench|deadlift|overhead press|ohp|lat pulldown|pulldown|row|curl|lunge|leg press|hip thrust|calf raise|dip)\b.*\d+\s*[x×]\s*\d+": "LOG_WORKOUT",
+    # Workout viewing (fitness)
+    r"\b(show|view|list|see|check|last|recent)\b.*\b(workout|workouts|leg day|training session|gym session|lifting session)\b": "VIEW_WORKOUTS",
+    r"\b(workout|training)\s+(history|log|sessions?|record)\b": "VIEW_WORKOUTS",
     # Commands (instant classification)
     r"^/help": "HELP",
     r"^/report": "REPORT",
@@ -79,6 +87,12 @@ Examples:
 "What are my spending limits?" → {{"intent": "view_budgets"}}
 "Remove food budget" → {{"intent": "delete_budget"}}
 "Delete my transport limit" → {{"intent": "delete_budget"}}
+"Did legs today - squat 35x8, 35x8, 35x9 and leg curls" → {{"intent": "log_workout"}}
+"Logged with Hevy. Squat (Barbell) 35 kg x 8" → {{"intent": "log_workout"}}
+"Just finished upper A, bench 40x8, 40x7" → {{"intent": "log_workout"}}
+"Show my last leg workout" → {{"intent": "view_workouts"}}
+"What did I do last chest day?" → {{"intent": "view_workouts"}}
+"My workout history" → {{"intent": "view_workouts"}}
 
 User message:
 {message}

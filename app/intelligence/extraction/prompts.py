@@ -157,6 +157,46 @@ def build_dto_prompt(message: str, intent: IntentType, user_id: int) -> str:
   - "budget 2000 for transport" → {"user_id": 1, "category_name": "Transportation", "amount_limit": 2000, "period": "monthly"}
 """
 
+    # --- Workout logging guidance ---
+    workout_query_guidance = ""
+    if intent == IntentType.LOG_WORKOUT:
+        workout_query_guidance = """
+### Workout Logging Guidance:
+- Parse the session into `exercises`, each with an ordered list of `sets`.
+- A working set has `weight_kg` and `reps` (e.g. "35 kg x 8" → {"weight_kg": 35, "reps": 8}).
+  Bodyweight/rep-only sets may have just `reps`. Timed entries (warm-ups, planks, cardio,
+  e.g. "5min 43s") use `duration_seconds` (5min 43s = 343).
+- Mark warm-up / stretching / cardio blocks with `is_warmup: true`.
+- Preserve exercise order and set order exactly as written.
+- Keep the equipment qualifier in the name, e.g. "Squat (Barbell)", "Standing Calf Raise (Smith)".
+- Only set `performed_at` if a date/time is explicitly stated; otherwise omit it.
+- Example — input:
+  "Legs (Logged with Hevy) | Warm Up 5min 43s | Squat (Barbell) 35 kg x 8, 30 kg x 6, 25 kg x 9 |
+   Standing Calf Raise (Smith) 40 kg x 10, 40 kg x 10"
+  → {"user_id": 1, "name": "Legs", "source": "hevy", "exercises": [
+       {"name": "Warm Up", "is_warmup": true, "sets": [{"duration_seconds": 343}]},
+       {"name": "Squat (Barbell)", "is_warmup": false, "sets": [
+         {"weight_kg": 35, "reps": 8}, {"weight_kg": 30, "reps": 6}, {"weight_kg": 25, "reps": 9}]},
+       {"name": "Standing Calf Raise (Smith)", "is_warmup": false, "sets": [
+         {"weight_kg": 40, "reps": 10}, {"weight_kg": 40, "reps": 10}]}
+     ]}
+"""
+
+    # --- Workout viewing guidance ---
+    if intent == IntentType.VIEW_WORKOUTS:
+        workout_query_guidance = """
+### Workout Viewing Guidance:
+- `name`: the workout title to filter by if mentioned (e.g. "legs", "upper a").
+- `exercise_name`: set only if the user asks about a specific lift (e.g. "my squats").
+- `start_date`/`end_date`: parse any relative range into ISO dates.
+- `limit`: number of sessions requested; leave null to use the default.
+- Examples:
+  - "show my last leg workout" → {"user_id": 1, "name": "legs", "limit": 1}
+  - "what did I do last chest day" → {"user_id": 1, "name": "chest", "limit": 1}
+  - "my last 3 workouts" → {"user_id": 1, "limit": 3}
+  - "how have my squats been" → {"user_id": 1, "exercise_name": "squat"}
+"""
+
     # --- Final prompt string ---
     return f"""
 You are an expert assistant that converts user messages into a JSON object that matches a predefined data structure (DTO).
@@ -175,6 +215,7 @@ You are an expert assistant that converts user messages into a JSON object that 
 {expense_query_guidance}
 {insights_query_guidance}
 {budget_query_guidance}
+{workout_query_guidance}
 ---
 
 ### DTO: `{request_dto.__name__}`
