@@ -13,6 +13,7 @@ from app.modules.categories.models import Category
 from app.modules.reminders.models import Reminder
 from app.core.cache.models import Cache
 from app.modules.budgets.models import Budget
+from app.modules.transactions.models import CapturedTransaction, CaptureState
 from app.modules.workouts.models import Workout, WorkoutExercise, WorkoutSet
 
 # Load environment variables from .env file

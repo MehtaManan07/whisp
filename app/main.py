@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.error_handler import global_exception_handler
 from app.core.config import config
 from app.core.scheduler.service import SchedulerService
-from app.core.scheduler.jobs import process_due_reminders, send_weekly_reports, send_monthly_reports, check_budget_warnings
+from app.core.scheduler.jobs import process_due_reminders, send_weekly_reports, send_monthly_reports, check_budget_warnings, capture_email_transactions, nudge_pending_captures
 
 from app.integrations.telegram.controller import router as telegram_router
 from app.modules.expenses.controller import router as expenses_router
@@ -80,6 +80,28 @@ async def lifespan(app: FastAPI):
             job_id="check_budget_warnings",
         )
         logger.info("💸 Budget warnings check scheduled every 30 minutes")
+
+        # Gmail transaction auto-capture
+        if config.gmail_capture_enabled:
+            scheduler_service.add_interval_job(
+                func=capture_email_transactions,
+                minutes=config.gmail_poll_interval_minutes,
+                job_id="capture_email_transactions",
+            )
+            logger.info(
+                f"📧 Gmail capture scheduled every {config.gmail_poll_interval_minutes} minute(s)"
+            )
+
+            # Daily nudge for charges the user hasn't described yet: 8 PM IST
+            scheduler_service.add_cron_job(
+                func=nudge_pending_captures,
+                job_id="nudge_pending_captures",
+                hour=20,
+                minute=0,
+            )
+            logger.info("🔔 Pending-capture nudge scheduled: daily 8 PM IST")
+        else:
+            logger.info("📧 Gmail capture is disabled")
     else:
         logger.info("⏸️ Scheduler is disabled")
     

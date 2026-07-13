@@ -13,7 +13,7 @@ from app.core.messaging import (
     ProcessMessageResult,
 )
 from app.core.orchestrator import MessageOrchestrator
-from app.integrations.telegram.schema import TelegramUpdate, TelegramMessage
+from app.integrations.telegram.schema import TelegramMessage, TelegramUpdate
 
 
 logger = logging.getLogger(__name__)

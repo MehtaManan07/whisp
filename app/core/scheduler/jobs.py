@@ -163,3 +163,29 @@ async def check_budget_warnings() -> dict:
     except Exception as e:
         logger.error(f"Error in budget warnings job: {e}")
         return {"warnings_sent": 0, "error": str(e)}
+
+
+async def capture_email_transactions() -> dict:
+    """Poll Gmail for new bank/card transaction alerts and send describe prompts."""
+    from app.core.dependencies import get_capture_service
+
+    capture_service = get_capture_service()
+
+    try:
+        return await capture_service.run()
+    except Exception as e:
+        logger.error(f"Error in Gmail capture job: {e}")
+        return {"captured": 0, "ignored": 0, "skipped": 0, "error": str(e)}
+
+
+async def nudge_pending_captures() -> dict:
+    """Remind the user about captured charges they haven't described yet."""
+    from app.core.dependencies import get_capture_service
+
+    capture_service = get_capture_service()
+
+    try:
+        return await capture_service.nudge_pending()
+    except Exception as e:
+        logger.error(f"Error in capture nudge job: {e}")
+        return {"nudged": 0, "error": str(e)}

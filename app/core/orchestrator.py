@@ -123,7 +123,17 @@ class MessageOrchestrator:
     async def handle_reply(
         self, payload: HandleMessagePayload, user: User
     ) -> Optional[ProcessMessageResult]:
-        """Handle reply messages — treat as free text."""
+        """Handle reply messages.
+
+        If the reply is threaded onto a pending email-capture prompt, complete that
+        capture (log the described expense). Otherwise treat as normal free text.
+        """
+        from app.modules.transactions.completion import try_complete_capture
+
+        completed = await try_complete_capture(payload, user)
+        if completed is not None:
+            return completed
+
         return await self.handle_free_text(payload, user)
 
     # =============================================================================

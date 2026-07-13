@@ -39,6 +39,17 @@ class Config(BaseSettings):
         default=1, alias="SCHEDULER_REMINDERS_INTERVAL_MINUTES"
     )
 
+    # Gmail auto-capture Configuration
+    gmail_capture_enabled: bool = Field(default=True, alias="GMAIL_CAPTURE_ENABLED")
+    gmail_poll_interval_minutes: int = Field(
+        default=15, alias="GMAIL_POLL_INTERVAL_MINUTES"
+    )
+    gmail_lookback_days: int = Field(default=1, alias="GMAIL_LOOKBACK_DAYS")
+    gmail_credentials_path: str = Field(
+        default="credentials.json", alias="GMAIL_CREDENTIALS_PATH"
+    )
+    gmail_token_path: str = Field(default="token.json", alias="GMAIL_TOKEN_PATH")
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

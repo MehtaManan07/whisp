@@ -78,6 +78,34 @@ def get_reminder_service():
     return ReminderService()
 
 
+@lru_cache()
+def get_transactions_service():
+    from app.modules.transactions.service import TransactionsService
+
+    return TransactionsService()
+
+
+@lru_cache()
+def get_gmail_service():
+    from app.integrations.gmail.service import GmailService
+
+    return GmailService()
+
+
+@lru_cache()
+def get_capture_service():
+    """Gmail → expense capture pipeline - SINGLETON."""
+    from app.modules.transactions.capture import GmailExpenseCapture
+
+    return GmailExpenseCapture(
+        gmail_service=get_gmail_service(),
+        llm_service=get_llm_service(),
+        transactions_service=get_transactions_service(),
+        users_service=get_user_service(),
+        telegram_service=get_telegram_service(),
+    )
+
+
 # ============================================================================
 # INTELLIGENCE LAYER (Singletons)
 # ============================================================================
