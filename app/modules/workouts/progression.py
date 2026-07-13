@@ -54,9 +54,14 @@ class SessionInput:
 
 
 def estimate_1rm(weight_kg: Optional[float], reps: Optional[int]) -> Optional[float]:
-    """Epley estimated 1RM. Returns None if inputs are unusable."""
+    """Epley estimated 1RM. A single rep estimates to the weight itself.
+
+    Returns None if inputs are unusable.
+    """
     if not weight_kg or not reps or reps <= 0:
         return None
+    if reps == 1:
+        return weight_kg
     return weight_kg * (1 + reps / 30.0)
 
 

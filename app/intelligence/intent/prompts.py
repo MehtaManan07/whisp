@@ -47,6 +47,12 @@ INTENT_PATTERNS = {
     r"\d+\s*kg\s*[x×]\s*\d+": "LOG_WORKOUT",
     r"\b(did|logged|trained|finished|completed|smashed)\b.*\b(workout|leg day|legs|push day|pull day|upper( body)?|lower( body)?|chest( day)?|back( day)?|shoulders?|arm day|gym session)\b": "LOG_WORKOUT",
     r"\b(squat|bench|deadlift|overhead press|ohp|lat pulldown|pulldown|row|curl|lunge|leg press|hip thrust|calf raise|dip)\b.*\d+\s*[x×]\s*\d+": "LOG_WORKOUT",
+    # Next workout / progression coaching (fitness) — must precede viewing
+    r"\bnext\s+(workout|session|leg\s*day|legs|upper( body| a| b)?|lower( body| a| b)?|push( day)?|pull( day)?|chest( day)?|back( day)?|arm day)\b": "NEXT_WORKOUT",
+    r"\bwhat\s+(should i (do|train|hit|lift)|weight|reps?)\b.*\b(next|leg\s*day|legs|upper|lower|push|pull|squat|bench|workout|gym)\b": "NEXT_WORKOUT",
+    r"\bhow (much|heavy) should i\b.*\b(lift|squat|bench|press|deadlift|go|do)\b": "NEXT_WORKOUT",
+    r"\b(plan|program|coach)\s+(my\s+)?(next\s+)?(workout|leg\s*day|legs|upper|lower|session|training)\b": "NEXT_WORKOUT",
+    r"\bshould i (add|increase|bump|go up)\b.*\b(weight|kg|load|reps?|squat|bench|press|deadlift|next time)\b": "NEXT_WORKOUT",
     # Workout viewing (fitness)
     r"\b(show|view|list|see|check|last|recent)\b.*\b(workout|workouts|leg day|training session|gym session|lifting session)\b": "VIEW_WORKOUTS",
     r"\b(workout|training)\s+(history|log|sessions?|record)\b": "VIEW_WORKOUTS",
@@ -93,6 +99,10 @@ Examples:
 "Show my last leg workout" → {{"intent": "view_workouts"}}
 "What did I do last chest day?" → {{"intent": "view_workouts"}}
 "My workout history" → {{"intent": "view_workouts"}}
+"What should I do next leg day?" → {{"intent": "next_workout"}}
+"How much should I squat next time?" → {{"intent": "next_workout"}}
+"Plan my next upper A" → {{"intent": "next_workout"}}
+"What's next for legs?" → {{"intent": "next_workout"}}
 
 User message:
 {message}

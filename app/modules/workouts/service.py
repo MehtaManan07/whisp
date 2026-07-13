@@ -9,17 +9,26 @@ from app.core.db.engine import run_db
 from app.core.exceptions import DatabaseError
 from app.modules.workouts.dto import (
     LogWorkoutModel,
+    NextWorkoutModel,
+    NextWorkoutResponse,
     ViewWorkoutsModel,
     WorkoutExerciseResponse,
     WorkoutResponse,
     WorkoutSetResponse,
 )
 from app.modules.workouts.models import Workout, WorkoutExercise, WorkoutSet
+from app.modules.workouts.progression import (
+    SessionInput,
+    SetInput,
+    analyze_exercise,
+)
 from app.utils.datetime import to_utc, utc_now
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_WORKOUT_LIMIT = 5
+# How many past sessions of an exercise to feed the progression engine.
+PROGRESSION_HISTORY_LIMIT = 6
 
 
 def normalize_exercise_name(name: str) -> str:
@@ -190,5 +199,148 @@ class WorkoutsService:
                 .limit(1)
             ).scalar_one_or_none()
             return _to_response(workout) if workout else None
+
+        return await run_db(_get)
+
+    # ------------------------------------------------------------------
+    # Phase 2 — progression / "what should I do next" coaching
+    # ------------------------------------------------------------------
+    def _load_exercise_sessions(
+        self, db: Session, user_id: int, normalized_key: str, limit: int
+    ) -> List[SessionInput]:
+        """Recent working sessions of one exercise (newest first) for progression."""
+        rows = db.execute(
+            select(WorkoutExercise, Workout.performed_at)
+            .join(Workout, WorkoutExercise.workout_id == Workout.id)
+            .where(
+                Workout.user_id == user_id,
+                Workout.deleted_at.is_(None),
+                WorkoutExercise.deleted_at.is_(None),
+                WorkoutExercise.is_warmup.is_(False),
+                WorkoutExercise.normalized_key == normalized_key,
+            )
+            .options(selectinload(WorkoutExercise.sets))
+            .order_by(Workout.performed_at.desc())
+            .limit(limit)
+        ).all()
+
+        sessions: List[SessionInput] = []
+        for exercise, performed_at in rows:
+            ordered = sorted(exercise.sets, key=lambda s: s.set_index)
+            sessions.append(
+                SessionInput(
+                    performed_at=performed_at,
+                    sets=[
+                        SetInput(
+                            weight_kg=s.weight_kg,
+                            reps=s.reps,
+                            duration_seconds=s.duration_seconds,
+                        )
+                        for s in ordered
+                    ],
+                )
+            )
+        return sessions
+
+    def _resolve_exercise(
+        self, db: Session, user_id: int, query: str
+    ) -> Optional[tuple]:
+        """Find the most recent exercise matching a loose name → (display_name, key)."""
+        key_like = f"%{normalize_exercise_name(query)}%"
+        row = db.execute(
+            select(WorkoutExercise.name, WorkoutExercise.normalized_key)
+            .join(Workout, WorkoutExercise.workout_id == Workout.id)
+            .where(
+                Workout.user_id == user_id,
+                Workout.deleted_at.is_(None),
+                WorkoutExercise.deleted_at.is_(None),
+                WorkoutExercise.is_warmup.is_(False),
+                WorkoutExercise.normalized_key.ilike(key_like),
+            )
+            .order_by(Workout.performed_at.desc())
+            .limit(1)
+        ).first()
+        return (row.name, row.normalized_key) if row else None
+
+    async def get_next_workout(
+        self, data: NextWorkoutModel
+    ) -> NextWorkoutResponse:
+        """Build a progressive-overload plan for the next session."""
+
+        def _get(db: Session) -> NextWorkoutResponse:
+            workout_name: Optional[str] = None
+            based_on = None
+
+            # Single-lift mode ("how much should I squat next time").
+            if data.exercise_name:
+                resolved = self._resolve_exercise(db, data.user_id, data.exercise_name)
+                if not resolved:
+                    return NextWorkoutResponse(
+                        message=(
+                            f"I don't have any history for '{data.exercise_name}' yet. "
+                            "Log a session with it and I'll suggest a progression."
+                        )
+                    )
+                targets = [resolved]
+            # Whole-session mode: use a named template or the latest workout.
+            else:
+                query = (
+                    select(Workout)
+                    .where(
+                        Workout.user_id == data.user_id,
+                        Workout.deleted_at.is_(None),
+                    )
+                    .options(
+                        selectinload(Workout.exercises).selectinload(
+                            WorkoutExercise.sets
+                        )
+                    )
+                )
+                if data.name:
+                    query = query.where(Workout.name.ilike(f"%{data.name}%"))
+                template = db.execute(
+                    query.order_by(Workout.performed_at.desc()).limit(1)
+                ).scalar_one_or_none()
+
+                if not template:
+                    return NextWorkoutResponse(
+                        message=(
+                            "I couldn't find a matching workout to plan from."
+                            if data.name
+                            else "No workouts logged yet — log one and I'll plan your next session."
+                        )
+                    )
+
+                workout_name = template.name
+                based_on = template.performed_at
+                targets = [
+                    (ex.name, ex.normalized_key)
+                    for ex in template.exercises
+                    if not ex.is_warmup
+                ]
+                if not targets:
+                    return NextWorkoutResponse(
+                        workout_name=workout_name,
+                        based_on_date=based_on,
+                        message="That session had no working exercises to progress.",
+                    )
+
+            progressions = []
+            latest_seen = based_on
+            for display_name, key in targets:
+                sessions = self._load_exercise_sessions(
+                    db, data.user_id, key, PROGRESSION_HISTORY_LIMIT
+                )
+                progressions.append(analyze_exercise(display_name, sessions))
+                if sessions and (
+                    latest_seen is None or sessions[0].performed_at > latest_seen
+                ):
+                    latest_seen = sessions[0].performed_at
+
+            return NextWorkoutResponse(
+                workout_name=workout_name,
+                based_on_date=based_on or latest_seen,
+                exercises=progressions,
+            )
 
         return await run_db(_get)

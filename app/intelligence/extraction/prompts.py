@@ -197,6 +197,20 @@ def build_dto_prompt(message: str, intent: IntentType, user_id: int) -> str:
   - "how have my squats been" → {"user_id": 1, "exercise_name": "squat"}
 """
 
+    # --- Next-workout / progression guidance ---
+    if intent == IntentType.NEXT_WORKOUT:
+        workout_query_guidance = """
+### Next-Workout / Progression Guidance:
+- Use when the user wants a plan/target for an UPCOMING session, not a log of a past one.
+- `name`: the workout day to plan (e.g. "legs", "upper a"). Omit to use their most recent session.
+- `exercise_name`: set ONLY if they ask about ONE specific lift (e.g. "squat"); it overrides `name`.
+- Examples:
+  - "what should I do next leg day" → {"user_id": 1, "name": "legs"}
+  - "plan my next upper A" → {"user_id": 1, "name": "upper a"}
+  - "how much should I squat next time" → {"user_id": 1, "exercise_name": "squat"}
+  - "what's next" → {"user_id": 1}
+"""
+
     # --- Final prompt string ---
     return f"""
 You are an expert assistant that converts user messages into a JSON object that matches a predefined data structure (DTO).

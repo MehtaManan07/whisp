@@ -2,7 +2,12 @@
 
 from typing import List
 
-from app.modules.workouts.dto import WorkoutExerciseResponse, WorkoutResponse
+from app.modules.workouts.dto import (
+    ExerciseProgression,
+    NextWorkoutResponse,
+    WorkoutExerciseResponse,
+    WorkoutResponse,
+)
 from app.utils.datetime import format_datetime_for_user
 
 
@@ -129,4 +134,41 @@ def format_log_confirmation(
         sets_str = ", ".join(format_set(s) for s in ex.sets)
         lines.append(f"• {ex.name}: {sets_str}")
 
+    return "\n".join(lines)
+
+
+def _format_target(ex: ExerciseProgression) -> str:
+    """The headline prescription for one exercise, e.g. '37.5 kg × 8'."""
+    if ex.recommended_weight_kg is not None and ex.recommended_reps is not None:
+        return f"{ex.recommended_weight_kg:g} kg × {ex.recommended_reps}"
+    if ex.recommended_reps is not None:
+        return f"{ex.recommended_reps} reps"
+    if ex.recommended_duration_seconds is not None:
+        return format_duration(ex.recommended_duration_seconds)
+    return ex.recommended_note or "—"
+
+
+def format_next_workout(
+    plan: NextWorkoutResponse, user_timezone: str = "UTC"
+) -> str:
+    """Render a progressive-overload plan for the next session."""
+    if not plan.exercises:
+        return f"🎯 {plan.message or 'Nothing to plan yet — log a workout first.'}"
+
+    title = plan.workout_name or "session"
+    header = f"🎯 *Next {title}*"
+    if plan.based_on_date:
+        date_str = format_datetime_for_user(plan.based_on_date, user_timezone, "%b %d")
+        header += f" — based on {date_str}"
+
+    lines: List[str] = [header, "_Progressive-overload targets from your history:_", ""]
+
+    for ex in plan.exercises:
+        marker = "⚠️ " if ex.stalled else ""
+        lines.append(f"{marker}*{ex.name}* → {_format_target(ex)}")
+        if ex.rationale:
+            lines.append(f"  ↳ {ex.rationale}")
+
+    lines.append("")
+    lines.append("Leave 1–3 reps in reserve. Log it after and I'll re-calc next time.")
     return "\n".join(lines)

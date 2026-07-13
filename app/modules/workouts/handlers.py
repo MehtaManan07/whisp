@@ -1,9 +1,14 @@
 from app.intelligence.intent.base_handler import BaseHandlers
 from app.intelligence.intent.decorators import intent_handler
 from app.intelligence.intent.types import CLASSIFIED_RESULT, IntentType
-from app.modules.workouts.dto import LogWorkoutModel, ViewWorkoutsModel
+from app.modules.workouts.dto import (
+    LogWorkoutModel,
+    NextWorkoutModel,
+    ViewWorkoutsModel,
+)
 from app.modules.workouts.formatter import (
     format_log_confirmation,
+    format_next_workout,
     format_workout_list,
 )
 from app.modules.workouts.service import WorkoutsService
@@ -57,3 +62,18 @@ class WorkoutHandlers(BaseHandlers):
             data=dto_instance, user_timezone=user_timezone
         )
         return format_workout_list(workouts, user_timezone)
+
+    @intent_handler(IntentType.NEXT_WORKOUT)
+    async def next_workout(
+        self, classified_result: CLASSIFIED_RESULT, user_id: int, user_timezone: str = "UTC"
+    ) -> str:
+        """Suggest progressive-overload targets for the next session."""
+        dto_instance, _ = classified_result
+        if not isinstance(dto_instance, NextWorkoutModel):
+            # No usable extraction → plan from the most recent session.
+            dto_instance = NextWorkoutModel(user_id=user_id)
+        if not dto_instance.user_id:
+            dto_instance.user_id = user_id
+
+        plan = await self.service.get_next_workout(dto_instance)
+        return format_next_workout(plan, user_timezone)
